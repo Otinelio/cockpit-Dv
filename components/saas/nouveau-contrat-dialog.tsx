@@ -43,16 +43,23 @@ interface LignePrestation {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  entrepriseIdParDefaut?: string;
+  nomEntrepriseParDefaut?: string;
 }
 
-export default function NouveauContratDialog({ open, onOpenChange }: Props) {
+export default function NouveauContratDialog({
+  open,
+  onOpenChange,
+  entrepriseIdParDefaut,
+  nomEntrepriseParDefaut,
+}: Props) {
   const utilisateurActif = useCockpit((s) => s.utilisateurActif);
   const crm = useCockpit((s) => s.crm);
   const ajouterContrat = useCockpit((s) => s.ajouterContrat);
 
   const [titre, setTitre] = useState("");
-  const [entrepriseId, setEntrepriseId] = useState("");
-  const [nomEntrepriseLibre, setNomEntrepriseLibre] = useState("");
+  const [entrepriseId, setEntrepriseId] = useState(entrepriseIdParDefaut || "");
+  const [nomEntrepriseLibre, setNomEntrepriseLibre] = useState(nomEntrepriseParDefaut || "");
 
   // Gestion multi-prestations
   const [prestations, setPrestations] = useState<LignePrestation[]>([
@@ -155,7 +162,13 @@ export default function NouveauContratDialog({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[560px] max-h-[92dvh] flex flex-col p-0 overflow-hidden">
+      <DialogContent
+        className="max-w-[560px] max-h-[92dvh] flex flex-col p-0 overflow-hidden"
+        onOpenAutoFocus={() => {
+          if (entrepriseIdParDefaut) setEntrepriseId(entrepriseIdParDefaut);
+          if (nomEntrepriseParDefaut) setNomEntrepriseLibre(nomEntrepriseParDefaut);
+        }}
+      >
         <DialogHeader className="border-b border-border bg-card/60 p-5 pb-4">
           <DialogTitle>Enregistrer un contrat client</DialogTitle>
           <DialogDescription>
