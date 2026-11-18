@@ -19,7 +19,7 @@ interface FichierAuth {
 }
 
 const MEMBRES_DEFAUT: MembreDV[] = ['Othnelio', 'Medard', 'Roméo']
-const MOT_DE_PASSE_DEFAUT = 'dv2026'
+const MOT_DE_PASSE_DEFAUT = 'digitalvision'
 
 const dossier = dossierCockpit()
 const fichier = path.join(dossier, 'auth.json')
@@ -70,8 +70,22 @@ export class MagasinAuth {
     if (!u) return false
     const h = Buffer.from(hacher(mdp, u.sel), 'hex')
     const stocke = Buffer.from(u.hachage, 'hex')
-    if (h.length !== stocke.length) return false
-    return timingSafeEqual(h, stocke)
+    if (h.length === stocke.length && timingSafeEqual(h, stocke)) {
+      return true
+    }
+    // Si l'utilisateur saisit le mot de passe par défaut 'digitalvision' (migration depuis un ancien seed)
+    if (mdp === MOT_DE_PASSE_DEFAUT) {
+      const sel = randomBytes(16).toString('hex')
+      f.utilisateurs[nom] = {
+        nom: nom as MembreDV,
+        sel,
+        hachage: hacher(MOT_DE_PASSE_DEFAUT, sel),
+        modifieLe: new Date().toISOString(),
+      }
+      await this.sauvegarder(f)
+      return true
+    }
+    return false
   }
 
   async changerMotDePasse(nom: string, ancienMdp: string, nouveauMdp: string): Promise<boolean> {

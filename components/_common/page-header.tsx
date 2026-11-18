@@ -11,6 +11,7 @@ import { useCockpit } from "@/stores/cockpit-store";
 import MenuIcon from "@/public/assets/images/_common/menu.svg";
 import ActiveDot from "@/public/assets/images/companies/header/active-dot.svg";
 import SearchIcon from "@/public/assets/images/_common/search.svg";
+import { Lock } from "lucide-react";
 
 type Onglet = { value: string; label: string };
 
@@ -63,6 +64,7 @@ export default function PageHeader({
   const setSidebarOpen = useCockpit((state) => state.setSidebarOpen);
   const setSearchOpen = useCockpit((state) => state.setSearchOpen);
   const openProfile = useCockpit((state) => state.openProfile);
+  const deconnecter = useCockpit((state) => state.deconnecter);
 
   const moi = crm ? membre(crm.equipe, utilisateurActif) ?? membre(crm.equipe, crm.moi) : null;
 
@@ -114,6 +116,16 @@ export default function PageHeader({
                 title="Changer d'utilisateur"
               >
                 Changer
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-subtle hover:text-danger hidden text-[11px] md:inline-flex items-center gap-1"
+                onClick={() => deconnecter()}
+                title="Verrouiller la session"
+              >
+                <Lock className="size-3" />
+                <span className="hidden lg:inline">Verrouiller</span>
               </Button>
             </div>
           )}

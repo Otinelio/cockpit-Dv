@@ -23,6 +23,7 @@ import TargetIcon from "@/public/assets/images/companies/sidebar/target-05.svg";
 import WalletIcon from "@/public/assets/images/companies/sidebar/wallet.svg";
 import CalendarIcon from "@/public/assets/images/_common/calendar.svg";
 import { Layers } from "lucide-react";
+import PwaInstallBanner from "@/components/_common/pwa-install-banner";
 
 const LIENS: { href: string; label: string; icon: ComponentType<{ className?: string }> }[] = [
   { href: "/", label: "Tableau de bord", icon: BarChartIcon },
@@ -187,6 +188,8 @@ export default function SidebarContent() {
           )}
         </div>
       </SidebarSection>
+
+      <PwaInstallBanner />
 
       <div className="border-sidebar-border bg-sidebar-accent flex shrink-0 items-center justify-between gap-1 border-t p-2">
         <Button
