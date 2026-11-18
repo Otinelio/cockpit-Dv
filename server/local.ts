@@ -4,6 +4,7 @@
 
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { dossierCockpit } from './stockage-chemin'
 import { ENTREPRISE, TVA_TAUX } from '../data/entreprise'
 import type { MagasinCrm } from './crm'
 import { genererPdf } from './pdf-facture'
@@ -69,7 +70,7 @@ function versPL(f: FactureLocale): PLCustomerInvoice {
 }
 
 export function sourceLocale(crm: MagasinCrm): SourceLocale {
-  const dossier = path.join(process.cwd(), '.cockpit')
+  const dossier = dossierCockpit()
   const fichier = path.join(dossier, 'factures.json')
   let memoire: Fichier | null = null
   let ecriture: Promise<void> = Promise.resolve()

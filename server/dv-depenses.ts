@@ -3,9 +3,10 @@
 
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { dossierCockpit } from './stockage-chemin'
 import type { DepenseDV } from './dv-types'
 
-const dossier = path.join(process.cwd(), '.cockpit')
+const dossier = dossierCockpit()
 const fichier = path.join(dossier, 'depenses.json')
 
 function depensesInitiales(): DepenseDV[] {

@@ -4,6 +4,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { dossierCockpit } from './stockage-chemin'
 import type { MembreDV } from './dv-types'
 
 interface UtilisateurStocke {
@@ -20,7 +21,7 @@ interface FichierAuth {
 const MEMBRES_DEFAUT: MembreDV[] = ['Othnelio', 'Medard', 'Roméo']
 const MOT_DE_PASSE_DEFAUT = 'dv2026'
 
-const dossier = path.join(process.cwd(), '.cockpit')
+const dossier = dossierCockpit()
 const fichier = path.join(dossier, 'auth.json')
 
 function hacher(mdp: string, sel: string): string {

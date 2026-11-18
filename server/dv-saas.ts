@@ -3,9 +3,10 @@
 
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { dossierCockpit } from './stockage-chemin'
 import type { SaasDV } from './dv-types'
 
-const dossier = path.join(process.cwd(), '.cockpit')
+const dossier = dossierCockpit()
 const fichier = path.join(dossier, 'saas.json')
 
 function saasInitiaux(): SaasDV[] {

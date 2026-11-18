@@ -5,6 +5,7 @@
 
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { dossierCockpit } from './stockage-chemin'
 import { crmDemo } from './crm-demo'
 import { crmLocal } from './crm-local'
 import type { PLCustomer, PLCustomerInvoice } from './types'
@@ -86,7 +87,7 @@ function tendanceFactures(factures: PLCustomerInvoice[]): number[] {
 }
 
 export function magasinCrm(mode: 'demo' | 'pennylane' | 'local') {
-  const dossier = path.join(process.cwd(), '.cockpit')
+  const dossier = dossierCockpit()
   const fichier = path.join(dossier, mode === 'demo' ? 'crm-demo.json' : 'crm.json')
   let memoire: Crm | null = null
   let ecriture: Promise<void> = Promise.resolve()
