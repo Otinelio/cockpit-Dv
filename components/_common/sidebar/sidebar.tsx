@@ -24,7 +24,7 @@ export default function Sidebar() {
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent
           side="left"
-          className="w-[254px] max-w-[85vw] border-sidebar-border bg-sidebar"
+          className="w-[280px] max-w-[85vw] p-0 border-sidebar-border bg-sidebar"
         >
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <SheetDescription className="sr-only">

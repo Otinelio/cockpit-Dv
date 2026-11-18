@@ -252,47 +252,48 @@ export default function Factures() {
       />
 
       {/* Switcher vue Factures vs Dépenses */}
-      <div className="border-border bg-card/60 flex items-center justify-between border-b px-4 py-2.5">
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary p-0.5">
+      <div className="border-border bg-card/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b px-3 sm:px-4 py-2.5">
+        <div className="flex w-full sm:w-auto items-center gap-1 rounded-lg border border-border bg-secondary p-0.5">
           <button
             type="button"
             onClick={() => setVue("factures")}
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors",
+              "flex flex-1 sm:flex-initial justify-center items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 text-xs font-medium transition-colors",
               vue === "factures"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
             <ArrowUpCircle className="size-3.5" />
-            Factures clients ({factures.length})
+            Factures ({factures.length})
           </button>
           <button
             type="button"
             onClick={() => setVue("depenses")}
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors",
+              "flex flex-1 sm:flex-initial justify-center items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 text-xs font-medium transition-colors",
               vue === "depenses"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
             <ArrowDownCircle className="size-3.5" />
-            Dépenses agence ({depenses.length})
+            Dépenses ({depenses.length})
           </button>
         </div>
 
         {vue === "factures" && (
-          <div className="flex items-center gap-2">
+          <div className="flex w-full sm:w-auto items-center justify-end gap-2">
             <Button
               variant="secondary"
               size="sm"
               onClick={() => downloadCsv(`factures-${aujourdhui()}.csv`, lignesCsvFactures(visibles))}
+              className="hidden sm:inline-flex"
             >
               <ShareIcon aria-hidden className="size-3" />
               Exporter
             </Button>
-            <Button variant="primary" size="sm" onClick={() => ouvrirFacture()}>
+            <Button variant="primary" size="sm" onClick={() => ouvrirFacture()} className="flex-1 sm:flex-initial justify-center">
               <WalletIcon aria-hidden className="size-3" />
               Générer une facture
             </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ComponentType } from "react";
+import { useEffect, useRef, type ComponentType } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Avatar from "@/components/_ui/avatar";
 import Button from "@/components/_ui/button";
@@ -22,7 +22,7 @@ import ListIcon from "@/public/assets/images/companies/sidebar/list.svg";
 import TargetIcon from "@/public/assets/images/companies/sidebar/target-05.svg";
 import WalletIcon from "@/public/assets/images/companies/sidebar/wallet.svg";
 import CalendarIcon from "@/public/assets/images/_common/calendar.svg";
-import { Layers } from "lucide-react";
+import { Layers, X } from "lucide-react";
 import PwaInstallBanner from "@/components/_common/pwa-install-banner";
 
 const LIENS: { href: string; label: string; icon: ComponentType<{ className?: string }> }[] = [
@@ -52,8 +52,12 @@ export default function SidebarContent() {
   const taches = useCockpit((state) => state.taches);
   const saas = useCockpit((state) => state.saas);
 
+  const dernierPathname = useRef(pathname);
   useEffect(() => {
-    setSidebarOpen(false);
+    if (dernierPathname.current !== pathname) {
+      dernierPathname.current = pathname;
+      setSidebarOpen(false);
+    }
   }, [pathname, setSidebarOpen]);
 
   const entreprises = crm?.entreprises ?? [];
@@ -90,16 +94,27 @@ export default function SidebarContent() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-sidebar-border bg-sidebar-accent flex shrink-0 items-center gap-2 border-b p-3">
-        <Logo aria-hidden className="size-8 shrink-0 overflow-visible" />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="lead-style block truncate font-semibold tracking-[-0.01em]">
-            Cockpit DV
-          </span>
-          <span className="caption-style text-subtle block truncate text-[11px]">
-            {tableau?.entreprise ?? "DigitalVision Lomé"}
-          </span>
+      <div className="border-sidebar-border bg-sidebar-accent flex shrink-0 items-center justify-between gap-2 border-b p-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Logo aria-hidden className="size-8 shrink-0 overflow-visible" />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="lead-style block truncate font-semibold tracking-[-0.01em]">
+              Cockpit DV
+            </span>
+            <span className="caption-style text-subtle block truncate text-[11px]">
+              {tableau?.entreprise ?? "DigitalVision Lomé"}
+            </span>
+          </div>
         </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="lg:hidden text-muted-foreground hover:text-foreground"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Fermer le menu"
+        >
+          <X className="size-4" />
+        </Button>
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
@@ -117,6 +132,7 @@ export default function SidebarContent() {
                     ? pathname === "/"
                     : pathname.startsWith(lien.href)
                 }
+                onClick={() => setSidebarOpen(false)}
               />
             ))}
           </SidebarSection>
@@ -131,7 +147,10 @@ export default function SidebarContent() {
                   key={m.nom}
                   mark={<Avatar nom={m.nom} ton={m.ton} className="size-3.5 text-[6.5px]" />}
                   label={m.nom}
-                  onClick={() => openProfile(m.nom)}
+                  onClick={() => {
+                    setSidebarOpen(false);
+                    openProfile(m.nom);
+                  }}
                 />
               ))}
             </SidebarSection>
@@ -153,6 +172,7 @@ export default function SidebarContent() {
                 count={crm ? entreprises.filter((e) => e.etape === etape).length : undefined}
                 active={pathname.startsWith("/entreprises") && filtres.etape === etape}
                 onClick={() => {
+                  setSidebarOpen(false);
                   setVue("prospects");
                   setFiltres({ etape, fenetre: 0 });
                   router.push("/entreprises");

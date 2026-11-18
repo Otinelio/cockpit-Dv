@@ -106,15 +106,15 @@ export default function Taches() {
         }
       />
 
-      <div className="border-border bg-card/40 flex flex-wrap items-center justify-between gap-3 border-y px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs">Assigné à :</span>
-          <div className="flex items-center gap-1">
+      <div className="border-border bg-card/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-y px-3 sm:px-4 py-2.5 sm:py-3">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none w-full sm:w-auto pb-1 sm:pb-0">
+          <span className="text-muted-foreground text-xs shrink-0">Assigné à :</span>
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={() => setFiltreMembre("tous")}
               className={cn(
-                "rounded-md px-2 py-1 text-xs font-medium transition-colors",
+                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                 filtreMembre === "tous"
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary text-muted-foreground hover:text-foreground",
@@ -128,7 +128,7 @@ export default function Taches() {
                 type="button"
                 onClick={() => setFiltreMembre(m.nom)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                   filtreMembre === m.nom
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary text-muted-foreground hover:text-foreground",
@@ -145,7 +145,7 @@ export default function Taches() {
           variant="primary"
           size="sm"
           onClick={() => setModalOuverte(true)}
-          className="gap-1.5"
+          className="gap-1.5 w-full sm:w-auto justify-center"
         >
           <Plus className="size-3.5" />
           Nouvelle tâche

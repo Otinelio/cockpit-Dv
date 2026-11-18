@@ -70,25 +70,28 @@ export default function PageHeader({
 
   return (
     <header className="shrink-0">
-      <div className="flex items-center justify-between gap-2 px-4 py-[14px]">
+      <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 sm:py-[14px]">
         <div className="flex min-w-0 items-center gap-2">
           <Button
             variant="secondary"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden size-8 shrink-0 touch-manipulation"
             aria-label="Ouvrir le menu"
             onClick={() => setSidebarOpen(true)}
           >
-            <MenuIcon aria-hidden className="size-3.5" />
+            <MenuIcon aria-hidden className="size-4" />
           </Button>
-          <h1 className="truncate">{title}</h1>
-          {pill ?? <StatutPennylane />}
+          <h1 className="truncate text-sm sm:text-base font-semibold">{title}</h1>
+          <div className="hidden sm:inline-flex shrink-0">
+            {pill ?? <StatutPennylane />}
+          </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <Button
             variant="secondary"
             size="icon"
+            className="size-8"
             aria-label="Rechercher"
             aria-keyshortcuts="Meta+K Control+K"
             onClick={() => setSearchOpen(true)}
@@ -101,11 +104,11 @@ export default function PageHeader({
               <Button
                 variant="secondary"
                 size="none"
-                className="caption-style h-[30px] gap-1.5 py-[5px] pr-[7px] pl-[5px] font-normal"
+                className="caption-style h-8 gap-1.5 py-[5px] pr-[7px] pl-[5px] font-normal"
                 aria-label={`Ouvrir le profil de ${moi.nom}`}
                 onClick={() => openProfile(moi.nom)}
               >
-                <Avatar nom={moi.nom} ton={moi.ton} />
+                <Avatar nom={moi.nom} ton={moi.ton} className="size-6 text-[10px]" />
                 <span className="hidden sm:inline">{moi.nom}</span>
               </Button>
               <Button

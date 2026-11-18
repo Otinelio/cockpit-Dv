@@ -21,7 +21,7 @@ function TabsList({
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
-      className={cn("flex items-center gap-4", className)}
+      className={cn("flex items-center gap-4 overflow-x-auto scrollbar-none whitespace-nowrap", className)}
       {...props}
     />
   );

@@ -155,7 +155,7 @@ export default function SaasHub() {
       {onglet === "produits" ? (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Barre d'actions */}
-          <div className="border-border bg-card/40 flex items-center justify-between border-b px-4 py-3">
+          <div className="border-border bg-card/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b px-3 sm:px-4 py-2.5 sm:py-3">
             <span className="text-subtle text-xs">
               Nos solutions SaaS propriétaires créées par DigitalVision
             </span>
@@ -163,7 +163,7 @@ export default function SaasHub() {
               variant="primary"
               size="sm"
               onClick={() => setModalSaas(true)}
-              className="gap-1.5"
+              className="gap-1.5 w-full sm:w-auto justify-center"
             >
               <Plus className="size-3.5" />
               Nouveau SaaS
@@ -341,7 +341,7 @@ export default function SaasHub() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Barre d'actions Contrats */}
-          <div className="border-border bg-card/40 flex items-center justify-between border-b px-4 py-3">
+          <div className="border-border bg-card/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b px-3 sm:px-4 py-2.5 sm:py-3">
             <span className="text-subtle text-xs">
               Conventions, prestations de développement et maintenances DigitalVision
             </span>
@@ -349,7 +349,7 @@ export default function SaasHub() {
               variant="primary"
               size="sm"
               onClick={() => setModalContrat(true)}
-              className="gap-1.5"
+              className="gap-1.5 w-full sm:w-auto justify-center"
             >
               <Plus className="size-3.5" />
               Nouveau contrat

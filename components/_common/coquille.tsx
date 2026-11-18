@@ -9,6 +9,7 @@ import NewCompanyDialog from "@/components/entreprises/new-company/new-company-d
 import Profile from "@/components/entreprises/profile/profile";
 import NouvelleFacture from "@/components/factures/nouvelle-facture";
 import EcranConnexion from "@/components/_common/auth/ecran-connexion";
+import MobileNav from "@/components/_common/mobile-nav";
 import { useCockpit } from "@/stores/cockpit-store";
 
 export default function Coquille({ children }: { children: ReactNode }) {
@@ -66,7 +67,8 @@ export default function Coquille({ children }: { children: ReactNode }) {
   return (
     <main className="flex h-dvh max-w-full overflow-hidden">
       <Sidebar />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col pb-14 lg:pb-0">{children}</div>
+      <MobileNav />
       <CompanyDetail />
       <Profile />
       <NewCompanyDialog />
