@@ -4,31 +4,38 @@ import { useEffect, useState } from "react";
 import Avatar from "@/components/_ui/avatar";
 import Button from "@/components/_ui/button";
 import Tag from "@/components/_ui/tag";
-import { Checkbox } from "@/components/_ui/checkbox";
 import { ScrollArea } from "@/components/_ui/scroll-area";
 import PageHeader from "@/components/_common/page-header";
 import NouveauSaasDialog from "@/components/saas/nouveau-saas-dialog";
 import NouveauContratDialog from "@/components/saas/nouveau-contrat-dialog";
-import NouveauDocumentDialog from "@/components/saas/nouveau-document-dialog";
+import SaasDetailDialog from "@/components/saas/saas-detail-dialog";
+import ContratDetailDialog from "@/components/saas/contrat-detail-dialog";
 import { useCockpit } from "@/stores/cockpit-store";
 import { euros } from "@/lib/format";
-import { cn } from "@/lib/utils";
-import type { SaasDV, StatutSaasDV, StatutContratDV, TypeContratDV } from "@/server/dv-types";
+import type {
+  StatutSaasDV,
+  StatutContratDV,
+  TypeContratDV,
+} from "@/server/dv-types";
 import {
   Layers,
   Plus,
-  ExternalLink,
   FileText,
-  CheckCircle2,
-  Sparkles,
   Briefcase,
   Users,
   TrendingUp,
-  Trash2,
+  FolderOpen,
+  Folder,
+  ArrowRight,
+  Smartphone,
+  CheckCircle2,
+  PackageCheck,
+  CreditCard,
+  FileCheck,
 } from "lucide-react";
 
 const ONGLETS = [
-  { value: "produits", label: "Produits SaaS (SaaStup)" },
+  { value: "produits", label: "Dossiers SaaS (SaaStup)" },
   { value: "contrats", label: "Contrats & Conventions" },
 ];
 
@@ -65,7 +72,7 @@ function statutContratBadge(s: StatutContratDV) {
 function typeContratLibelle(t: TypeContratDV) {
   switch (t) {
     case "creation_site":
-      return "Site web";
+      return "Site web / Landing";
     case "app_mobile":
       return "App mobile";
     case "logiciel":
@@ -81,21 +88,26 @@ export default function SaasHub() {
   const [onglet, setOnglet] = useState("produits");
   const [modalSaas, setModalSaas] = useState(false);
   const [modalContrat, setModalContrat] = useState(false);
-  const [saasPourDoc, setSaasPourDoc] = useState<SaasDV | null>(null);
+
+  // Fiches détails sélectionnées par ID (dérivées réactivement du store)
+  const [saasIdSelectionne, setSaasIdSelectionne] = useState<string | null>(null);
+  const [contratIdSelectionne, setContratIdSelectionne] = useState<string | null>(null);
 
   const saas = useCockpit((s) => s.saas);
   const chargerSaas = useCockpit((s) => s.chargerSaas);
-  const modifierSaas = useCockpit((s) => s.modifierSaas);
-  const supprimerSaas = useCockpit((s) => s.supprimerSaas);
-
   const contrats = useCockpit((s) => s.contrats);
   const chargerContrats = useCockpit((s) => s.chargerContrats);
-  const supprimerContrat = useCockpit((s) => s.supprimerContrat);
+  const taches = useCockpit((s) => s.taches);
+  const chargerTaches = useCockpit((s) => s.chargerTaches);
 
   useEffect(() => {
     chargerSaas();
     chargerContrats();
-  }, [chargerSaas, chargerContrats]);
+    chargerTaches();
+  }, [chargerSaas, chargerContrats, chargerTaches]);
+
+  const saasSelectionne = saasIdSelectionne ? saas.find((s) => s.id === saasIdSelectionne) ?? null : null;
+  const contratSelectionne = contratIdSelectionne ? contrats.find((c) => c.id === contratIdSelectionne) ?? null : null;
 
   const objectifMrrCumule = saas.reduce((acc, s) => acc + (s.objectifMrrFCFA || 0), 0);
   const mrrActuelCumule = saas.reduce((acc, s) => acc + (s.mrrFCFA || 0), 0);
@@ -110,227 +122,180 @@ export default function SaasHub() {
         onTab={setOnglet}
         pill={
           <span className="caption-style bg-muted inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 text-xs text-purple-400">
-            <Sparkles className="size-3" />
-            Lab DigitalVision
+            <FolderOpen className="size-3" />
+            Lab & Projets DigitalVision
           </span>
         }
       />
 
-      {/* Résumé des métriques SaaStup */}
-      <div className="grid grid-cols-1 gap-px border-y border-border bg-border sm:grid-cols-3">
-        <div className="bg-card p-4">
-          <span className="caption-style text-muted-foreground flex items-center gap-1.5">
-            <Layers className="size-3.5 text-purple-400" />
-            Produits SaaS incubés
+      {/* Résumé des métriques SaaStup - ULTRA COMPACT SUR MOBILE */}
+      <div className="grid grid-cols-3 divide-x divide-border border-y border-border bg-card px-2 py-2 sm:px-4 sm:py-3">
+        <div className="flex flex-col items-center sm:items-start px-1 sm:px-3">
+          <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 truncate">
+            <Layers className="size-3 text-purple-400 shrink-0" />
+            <span className="hidden sm:inline">Produits SaaS incubés</span>
+            <span className="sm:hidden">SaaS</span>
           </span>
-          <span className="lead-style mt-1 block font-semibold text-foreground">
-            {saas.length} solution{saas.length > 1 ? "s" : ""}
+          <span className="text-xs sm:text-base font-semibold text-foreground mt-0.5 tabular-nums">
+            {saas.length} <span className="hidden sm:inline text-xs font-normal text-subtle">projets</span>
           </span>
         </div>
 
-        <div className="bg-card p-4">
-          <span className="caption-style text-muted-foreground flex items-center gap-1.5">
-            <TrendingUp className="size-3.5 text-trend" />
-            Objectif MRR SaaStup
+        <div className="flex flex-col items-center sm:items-start px-1 sm:px-3">
+          <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 truncate">
+            <TrendingUp className="size-3 text-trend shrink-0" />
+            <span className="hidden sm:inline">Objectif MRR</span>
+            <span className="sm:hidden">Obj. MRR</span>
           </span>
-          <span className="lead-style mt-1 block font-semibold text-foreground">
-            {euros(objectifMrrCumule, true)}{" "}
-            <span className="text-muted-foreground text-xs font-normal">
-              (actuel : {euros(mrrActuelCumule, true)})
+          <span className="text-xs sm:text-base font-semibold text-foreground mt-0.5 tabular-nums truncate max-w-full">
+            {euros(objectifMrrCumule, true)}
+            <span className="hidden lg:inline text-xs font-normal text-muted-foreground ml-1">
+              ({euros(mrrActuelCumule, true)})
             </span>
           </span>
         </div>
 
-        <div className="bg-card p-4">
-          <span className="caption-style text-muted-foreground flex items-center gap-1.5">
-            <Briefcase className="size-3.5 text-blue-400" />
-            Contrats clients actifs
+        <div className="flex flex-col items-center sm:items-start px-1 sm:px-3">
+          <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 truncate">
+            <Briefcase className="size-3 text-blue-400 shrink-0" />
+            <span className="hidden sm:inline">Contrats clients actifs</span>
+            <span className="sm:hidden">Contrats</span>
           </span>
-          <span className="lead-style mt-1 block font-semibold text-foreground">
-            {contratsActifs} contrat{contratsActifs > 1 ? "s" : ""}
+          <span className="text-xs sm:text-base font-semibold text-foreground mt-0.5 tabular-nums">
+            {contratsActifs} <span className="hidden sm:inline text-xs font-normal text-subtle">actifs</span>
           </span>
         </div>
       </div>
 
       {onglet === "produits" ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          {/* Barre d'actions */}
-          <div className="border-border bg-card/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b px-3 sm:px-4 py-2.5 sm:py-3">
-            <span className="text-subtle text-xs">
-              Nos solutions SaaS propriétaires créées par DigitalVision
+          {/* Barre d'actions compacte */}
+          <div className="border-border bg-card/40 flex items-center justify-between gap-2 border-b px-3 sm:px-4 py-2 sm:py-2.5">
+            <span className="text-subtle text-xs truncate">
+              Clique sur un projet pour entrer dans son dossier complet
             </span>
             <Button
               variant="primary"
               size="sm"
               onClick={() => setModalSaas(true)}
-              className="gap-1.5 w-full sm:w-auto justify-center"
+              className="gap-1.5 shrink-0 text-xs h-8"
             >
               <Plus className="size-3.5" />
               Nouveau SaaS
             </Button>
           </div>
 
-          <ScrollArea className="min-h-0 flex-1 p-4">
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <ScrollArea className="min-h-0 flex-1 p-3 sm:p-5">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {saas.map((s) => {
                 const jalonsFaits = (s.jalons ?? []).filter((j) => j.termine).length;
                 const totalJalons = (s.jalons ?? []).length;
                 const pctJalons = totalJalons > 0 ? Math.round((jalonsFaits / totalJalons) * 100) : 0;
 
+                const tachesDuProjet = (taches ?? []).filter(
+                  (t) =>
+                    t.saasId === s.id ||
+                    t.titre.toLowerCase().includes(s.nom.toLowerCase()),
+                );
+
+                const aApk = (s.documents ?? []).some((d) => d.type === "apk") || !!s.apkUrl;
+
                 return (
                   <div
                     key={s.id}
-                    className="border-line-strong bg-card flex flex-col rounded-xl border p-5 shadow-xs transition-all hover:border-border"
+                    onClick={() => setSaasIdSelectionne(s.id)}
+                    className="border-line-strong bg-card hover:bg-secondary/30 flex flex-col justify-between rounded-xl border p-4 sm:p-5 shadow-xs transition-all cursor-pointer hover:border-purple-500/40 group"
                   >
-                    {/* Header carte */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 flex-col gap-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base font-semibold text-foreground">
-                            {s.nom}
-                          </h3>
-                          {statutBadge(s.statut)}
-                        </div>
-                        <p className="text-subtle text-xs font-medium">
-                          {s.slogan}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        {s.url && (
-                          <a
-                            href={s.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-muted-foreground hover:text-foreground rounded p-1"
-                            title="Ouvrir le site / l'app"
-                          >
-                            <ExternalLink className="size-4" />
-                          </a>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => supprimerSaas(s.id)}
-                          className="text-muted-foreground hover:text-red-400 rounded p-1 transition-colors"
-                          title="Supprimer ce SaaS"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
-                      {s.description}
-                    </p>
-
-                    {/* Équipe & Leads */}
-                    <div className="border-border bg-secondary/50 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2.5">
-                      <div className="flex items-center gap-4 text-xs">
-                        <div className="flex items-center gap-1.5" title="Lead Tech">
-                          <Avatar nom={s.leadTech} ton="purple" className="size-4 text-[7px]" />
-                          <span className="text-subtle">Tech : <strong className="text-foreground">{s.leadTech}</strong></span>
-                        </div>
-                        <div className="flex items-center gap-1.5" title="Lead Marketing">
-                          <Avatar nom={s.leadMarketing} ton="blue" className="size-4 text-[7px]" />
-                          <span className="text-subtle">Mktg : <strong className="text-foreground">{s.leadMarketing}</strong></span>
-                        </div>
-                        <div className="flex items-center gap-1.5" title="Lead Ops">
-                          <Avatar nom={s.leadOps} ton="green" className="size-4 text-[7px]" />
-                          <span className="text-subtle">Ops : <strong className="text-foreground">{s.leadOps}</strong></span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-xs">
-                        <Users className="text-muted-foreground size-3.5" />
-                        <span className="font-medium text-foreground">{s.utilisateurs} utilisateurs</span>
-                      </div>
-                    </div>
-
-                    {/* Roadmap / Jalons */}
-                    <div className="mt-4 flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <span className="caption-style text-muted-foreground flex items-center gap-1.5">
-                          <CheckCircle2 className="size-3.5 text-purple-400" />
-                          Roadmap & Jalons ({jalonsFaits}/{totalJalons})
-                        </span>
-                        <span className="text-muted-foreground text-xs font-semibold">{pctJalons}%</span>
-                      </div>
-
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                        <div
-                          className="h-full bg-purple-500 transition-all duration-300"
-                          style={{ width: `${pctJalons}%` }}
-                        />
-                      </div>
-
-                      <div className="divide-border mt-1 flex flex-col divide-y rounded-lg border border-border bg-secondary/30">
-                        {(s.jalons ?? []).map((j) => (
-                          <label
-                            key={j.id}
-                            className="hover:bg-secondary/60 flex cursor-pointer items-start gap-2.5 p-2 text-xs transition-colors"
-                          >
-                            <Checkbox
-                              checked={j.termine}
-                              onCheckedChange={(checked) => {
-                                const nouveauxJalons = s.jalons.map((x) =>
-                                  x.id === j.id ? { ...x, termine: !!checked } : x,
-                                );
-                                modifierSaas(s.id, { jalons: nouveauxJalons });
-                              }}
-                              className="mt-0.5"
-                            />
-                            <div className="flex min-w-0 flex-1 flex-col">
-                              <span className={cn(j.termine && "line-through text-muted-foreground")}>
-                                {j.titre}
-                              </span>
-                              {j.description && (
-                                <span className="text-subtle text-[11px]">{j.description}</span>
+                    <div>
+                      {/* En-tête Dossier */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="flex size-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0 group-hover:scale-105 transition-transform">
+                            <Folder className="size-5" />
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-base font-bold text-foreground group-hover:text-purple-300 transition-colors">
+                                {s.nom}
+                              </h3>
+                              {statutBadge(s.statut)}
+                              {aApk && (
+                                <span className="inline-flex items-center gap-1 rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-medium text-purple-300">
+                                  <Smartphone className="size-2.5" />
+                                  APK dispo
+                                </span>
                               )}
                             </div>
-                          </label>
-                        ))}
+                            <p className="text-subtle text-xs mt-0.5 truncate">
+                              {s.slogan}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className="text-purple-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
+                          <ArrowRight className="size-4" />
+                        </span>
+                      </div>
+
+                      {/* Description courte */}
+                      <p className="text-muted-foreground mt-3 text-xs leading-relaxed line-clamp-2">
+                        {s.description}
+                      </p>
+
+                      {/* Équipe Leads */}
+                      <div className="border-border bg-secondary/40 mt-3.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5" title={`Tech: ${s.leadTech}`}>
+                            <Avatar nom={s.leadTech} ton="purple" className="size-4 text-[7px]" />
+                            <span className="text-subtle">{s.leadTech}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5" title={`Mktg: ${s.leadMarketing}`}>
+                            <Avatar nom={s.leadMarketing} ton="blue" className="size-4 text-[7px]" />
+                            <span className="text-subtle">{s.leadMarketing}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Users className="size-3" />
+                          <span className="font-semibold text-foreground">{s.utilisateurs}</span> users
+                        </div>
+                      </div>
+
+                      {/* Avancement Roadmap */}
+                      <div className="mt-3.5 flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-subtle flex items-center gap-1 text-[11px]">
+                            <CheckCircle2 className="size-3 text-purple-400" />
+                            Roadmap : {jalonsFaits}/{totalJalons} jalons
+                          </span>
+                          <span className="text-xs font-semibold text-foreground">{pctJalons}%</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className="h-full bg-purple-500 transition-all duration-300"
+                            style={{ width: `${pctJalons}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    {/* Documents & Fiches */}
-                    <div className="mt-4 flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <span className="caption-style text-muted-foreground flex items-center gap-1.5">
-                          <FileText className="size-3.5 text-blue-400" />
-                          Documents & Fiches techniques ({(s.documents ?? []).length})
+                    {/* Footer de la carte */}
+                    <div className="border-border/60 mt-4 flex items-center justify-between border-t pt-3 text-xs">
+                      <div className="flex items-center gap-3 text-subtle text-[11px]">
+                        <span className="flex items-center gap-1">
+                          <FileText className="size-3" />
+                          {(s.documents ?? []).length} doc{(s.documents ?? []).length > 1 ? "s" : ""}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setSaasPourDoc(s)}
-                          className="text-primary hover:underline flex items-center gap-1 text-xs"
-                        >
-                          <Plus className="size-3" />
-                          Ajouter un document
-                        </button>
+                        <span>•</span>
+                        <span>
+                          {tachesDuProjet.length} tâche{tachesDuProjet.length > 1 ? "s" : ""}
+                        </span>
                       </div>
 
-                      {(s.documents ?? []).length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {s.documents.map((doc) => (
-                            <a
-                              key={doc.id}
-                              href={doc.urlOuContenu.startsWith("http") ? doc.urlOuContenu : "#"}
-                              target={doc.urlOuContenu.startsWith("http") ? "_blank" : "_self"}
-                              rel="noopener noreferrer"
-                              className="border-border bg-secondary/70 hover:border-line-strong flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors"
-                              title={doc.urlOuContenu}
-                            >
-                              <FileText className="text-muted-foreground size-3" />
-                              <span className="font-medium text-foreground">{doc.titre}</span>
-                            </a>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-subtle text-xs italic">
-                          Aucun document rattaché pour l&apos;instant.
-                        </span>
-                      )}
+                      <div className="inline-flex items-center gap-1 text-xs font-medium text-purple-400 group-hover:underline">
+                        <span>Ouvrir le dossier</span>
+                        <ArrowRight className="size-3" />
+                      </div>
                     </div>
                   </div>
                 );
@@ -341,22 +306,22 @@ export default function SaasHub() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Barre d'actions Contrats */}
-          <div className="border-border bg-card/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b px-3 sm:px-4 py-2.5 sm:py-3">
-            <span className="text-subtle text-xs">
-              Conventions, prestations de développement et maintenances DigitalVision
+          <div className="border-border bg-card/40 flex items-center justify-between gap-2 border-b px-3 sm:px-4 py-2 sm:py-2.5">
+            <span className="text-subtle text-xs truncate">
+              Clique sur un contrat pour suivre sa signature, livraison et paiements
             </span>
             <Button
               variant="primary"
               size="sm"
               onClick={() => setModalContrat(true)}
-              className="gap-1.5 w-full sm:w-auto justify-center"
+              className="gap-1.5 shrink-0 text-xs h-8"
             >
               <Plus className="size-3.5" />
               Nouveau contrat
             </Button>
           </div>
 
-          <ScrollArea className="min-h-0 flex-1 p-4">
+          <ScrollArea className="min-h-0 flex-1 p-3 sm:p-5">
             {contrats.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-12 text-center">
                 <Briefcase className="text-muted-foreground size-10 stroke-1" />
@@ -374,85 +339,136 @@ export default function SaasHub() {
                 </Button>
               </div>
             ) : (
-              <div className="divide-border flex flex-col divide-y rounded-xl border border-border bg-card">
-                {contrats.map((c) => (
-                  <div
-                    key={c.id}
-                    className="hover:bg-secondary/40 flex flex-col gap-2 p-4 transition-colors sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold text-foreground">
-                          {c.titre}
-                        </span>
-                        <span className="bg-secondary text-subtle rounded px-2 py-0.5 text-xs">
-                          {typeContratLibelle(c.type)}
-                        </span>
-                        {statutContratBadge(c.statut)}
-                      </div>
+              <div className="divide-border flex flex-col divide-y rounded-xl border border-border bg-card overflow-hidden">
+                {contrats.map((c) => {
+                  const estSigne = c.estSigne ?? (c.statut === "actif" || c.statut === "termine");
+                  const estLivre = c.estLivre ?? (c.statut === "termine");
+                  const estPaye = c.estPaye ?? false;
 
-                      <div className="text-subtle flex flex-wrap items-center gap-3 text-xs">
-                        <span>
-                          Client : <strong className="text-foreground">{c.nomEntreprise}</strong>
-                        </span>
-                        <span>
-                          Début : {c.debutLe.split("-").reverse().join("/")}
-                        </span>
-                        {c.finLe && (
-                          <span>
-                            Fin : {c.finLe.split("-").reverse().join("/")}
+                  const nbPrestations = (c.prestations ?? []).length;
+
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => setContratIdSelectionne(c.id)}
+                      className="hover:bg-secondary/40 flex flex-col gap-3 p-4 transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between group"
+                    >
+                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                            {c.titre}
                           </span>
+                          <span className="bg-secondary text-subtle rounded px-2 py-0.5 text-xs font-medium">
+                            {nbPrestations > 1
+                              ? `${nbPrestations} prestations`
+                              : typeContratLibelle(c.type)}
+                          </span>
+                          {statutContratBadge(c.statut)}
+                        </div>
+
+                        {/* Prestations multi-lignes si présentes */}
+                        {c.prestations && c.prestations.length > 1 && (
+                          <div className="flex flex-wrap gap-1.5 mt-0.5">
+                            {c.prestations.map((p, idx) => (
+                              <span
+                                key={p.id || idx}
+                                className="text-[11px] text-muted-foreground bg-secondary/80 rounded px-1.5 py-0.5"
+                              >
+                                {p.libellePersonnalise || typeContratLibelle(p.type)} ({euros(p.montantFCFA, true)})
+                              </span>
+                            ))}
+                          </div>
                         )}
-                        <span>
-                          Resp. : {c.responsable}
-                        </span>
+
+                        <div className="text-subtle flex flex-wrap items-center gap-3 text-xs">
+                          <span>
+                            Client : <strong className="text-foreground">{c.nomEntreprise}</strong>
+                          </span>
+                          <span>
+                            Début : {c.debutLe.split("-").reverse().join("/")}
+                          </span>
+                          {c.finLe && (
+                            <span>
+                              Fin : {c.finLe.split("-").reverse().join("/")}
+                            </span>
+                          )}
+                          <span>Resp. : {c.responsable}</span>
+                        </div>
+
+                        {/* Badges de suivi opérationnel */}
+                        <div className="flex items-center gap-3 mt-1 text-[11px]">
+                          <span
+                            className={`flex items-center gap-1 ${
+                              estSigne ? "text-emerald-400 font-medium" : "text-subtle"
+                            }`}
+                          >
+                            <FileCheck className="size-3" />
+                            {estSigne ? "Signé" : "Non signé"}
+                          </span>
+
+                          <span
+                            className={`flex items-center gap-1 ${
+                              estLivre ? "text-purple-400 font-medium" : "text-subtle"
+                            }`}
+                          >
+                            <PackageCheck className="size-3" />
+                            {estLivre ? "Livré" : "En cours"}
+                          </span>
+
+                          <span
+                            className={`flex items-center gap-1 ${
+                              estPaye ? "text-trend font-medium" : "text-subtle"
+                            }`}
+                          >
+                            <CreditCard className="size-3" />
+                            {estPaye ? "Soldé" : "Paiement en attente"}
+                          </span>
+                        </div>
                       </div>
 
-                      {c.notes && (
-                        <p className="text-muted-foreground mt-0.5 text-xs italic">
-                          {c.notes}
-                        </p>
-                      )}
-                    </div>
+                      <div className="flex items-center justify-between gap-4 sm:justify-end border-t border-border/50 pt-2 sm:border-0 sm:pt-0">
+                        <span className="lead-style font-semibold text-trend tabular-nums">
+                          {euros(c.montantFCFA, true)}
+                        </span>
 
-                    <div className="flex items-center justify-between gap-4 sm:justify-end">
-                      <span className="lead-style font-semibold text-trend tabular-nums">
-                        {euros(c.montantFCFA, true)}
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() => supprimerContrat(c.id)}
-                        className="text-muted-foreground hover:text-red-400 rounded p-1 transition-colors"
-                        title="Supprimer ce contrat"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
+                        <span className="text-subtle group-hover:text-foreground group-hover:translate-x-1 transition-all">
+                          <ArrowRight className="size-4" />
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
         </div>
       )}
 
+      {/* Modale Nouveau SaaS */}
       <NouveauSaasDialog
         open={modalSaas}
         onOpenChange={setModalSaas}
       />
 
+      {/* Modale Nouveau Contrat */}
       <NouveauContratDialog
         open={modalContrat}
         onOpenChange={setModalContrat}
       />
 
-      <NouveauDocumentDialog
-        saas={saasPourDoc}
-        open={!!saasPourDoc}
-        onOpenChange={(open) => !open && setSaasPourDoc(null)}
+      {/* Dossier de Projet SaaS */}
+      <SaasDetailDialog
+        saas={saasSelectionne}
+        open={!!saasSelectionne}
+        onOpenChange={(op) => !op && setSaasIdSelectionne(null)}
+      />
+
+      {/* Fiche Détail Contrat avec validations */}
+      <ContratDetailDialog
+        contrat={contratSelectionne}
+        open={!!contratSelectionne}
+        onOpenChange={(op) => !op && setContratIdSelectionne(null)}
       />
     </section>
   );
 }
-

@@ -287,6 +287,7 @@ async function router(req: Request): Promise<Response> {
       leadOps: b.leadOps ?? 'Roméo',
       url: b.url ? String(b.url) : undefined,
       depotGit: b.depotGit ? String(b.depotGit) : undefined,
+      apkUrl: b.apkUrl ? String(b.apkUrl) : undefined,
       mrrFCFA: Number(b.mrrFCFA ?? 0),
       objectifMrrFCFA: Number(b.objectifMrrFCFA ?? 500000),
       utilisateurs: Number(b.utilisateurs ?? 0),
@@ -342,6 +343,7 @@ async function router(req: Request): Promise<Response> {
       nomEntreprise: String(b.nomEntreprise).trim(),
       titre: String(b.titre).trim(),
       type: b.type ?? 'creation_site',
+      prestations: Array.isArray(b.prestations) ? b.prestations : undefined,
       montantFCFA: Number(b.montantFCFA ?? 0),
       signeLe: b.signeLe ? String(b.signeLe) : undefined,
       debutLe: b.debutLe ?? new Date().toISOString().slice(0, 10),
@@ -349,6 +351,12 @@ async function router(req: Request): Promise<Response> {
       statut: b.statut ?? 'brouillon',
       responsable: b.responsable ?? auteur,
       notes: b.notes ? String(b.notes) : undefined,
+      estSigne: b.estSigne ?? false,
+      estLivre: b.estLivre ?? false,
+      livreLe: b.livreLe ? String(b.livreLe) : undefined,
+      estPaye: b.estPaye ?? false,
+      montantPayeFCFA: b.montantPayeFCFA !== undefined ? Number(b.montantPayeFCFA) : undefined,
+      payeLe: b.payeLe ? String(b.payeLe) : undefined,
     })
     await magasinActivite.enregistrer({
       auteur,

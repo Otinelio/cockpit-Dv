@@ -67,15 +67,20 @@ export interface JalonSaas {
   id: string
   titre: string
   description?: string
+  attentes?: string
   echeance?: string
+  dateLimite?: string
   termine: boolean
 }
 
 export interface DocumentSaas {
   id: string
   titre: string
-  type: 'cahier_charges' | 'contrat' | 'fiche_technique' | 'maquette' | 'autre'
+  type: 'cahier_charges' | 'contrat' | 'fiche_technique' | 'maquette' | 'apk' | 'autre'
   urlOuContenu: string
+  nomFichier?: string
+  tailleOctets?: number
+  mimeType?: string
   date: string
 }
 
@@ -92,6 +97,7 @@ export interface SaasDV {
   leadOps: string
   url?: string
   depotGit?: string
+  apkUrl?: string
   mrrFCFA: number
   objectifMrrFCFA: number
   utilisateurs: number
@@ -104,12 +110,20 @@ export interface SaasDV {
 export type TypeContratDV = 'creation_site' | 'app_mobile' | 'logiciel' | 'maintenance' | 'conseil'
 export type StatutContratDV = 'brouillon' | 'en_attente' | 'actif' | 'termine' | 'resilie'
 
+export interface PrestationContratDV {
+  id: string
+  type: TypeContratDV
+  libellePersonnalise?: string
+  montantFCFA: number
+}
+
 export interface ContratDV {
   id: string
   entrepriseId: string
   nomEntreprise: string
   titre: string
   type: TypeContratDV
+  prestations?: PrestationContratDV[]
   montantFCFA: number
   signeLe?: string
   debutLe: string
@@ -118,5 +132,11 @@ export interface ContratDV {
   responsable: string
   notes?: string
   creeLe: string
+  estSigne?: boolean
+  estLivre?: boolean
+  livreLe?: string
+  estPaye?: boolean
+  montantPayeFCFA?: number
+  payeLe?: string
 }
 
