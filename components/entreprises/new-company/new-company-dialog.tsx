@@ -25,12 +25,19 @@ import { Slider } from "@/components/_ui/slider";
 import SegmentBar from "@/components/_common/segment-bar";
 import FormSection from "./form-section";
 import { aujourdhui } from "@/lib/format";
-import { ETAPES, SEGMENTS, type Etape, type Segment } from "@/server/crm-types";
+import {
+  CANAUX_ORIGINE,
+  ETAPES,
+  SEGMENTS,
+  TYPES_ECHANGE,
+  type Etape,
+  type Segment,
+} from "@/server/crm-types";
 import { useCockpit } from "@/stores/cockpit-store";
 import PlusIcon from "@/public/assets/images/_common/plus.svg";
 
-const SOURCES = ["Site web", "Instagram", "LinkedIn", "Recommandation", "Salon", "Autre"];
-const ECHANGES = ["Premier contact", "Appel", "E-mail", "Rendez-vous", "Devis", "Visite"];
+const SOURCES = CANAUX_ORIGINE;
+const ECHANGES = TYPES_ECHANGE;
 const ETAPES_CREATION = ETAPES.filter((e) => e !== "Client");
 
 type FormState = {
@@ -54,7 +61,7 @@ type FormState = {
 function formulaireVide(moi: string): FormState {
   return {
     nom: "",
-    segment: "PME",
+    segment: "Restaurant",
     etape: "Nouveau",
     source: SOURCES[0],
     responsable: moi,

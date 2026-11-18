@@ -19,13 +19,27 @@ import {
 } from "@/components/_ui/sheet";
 import FilterMenu from "@/components/_common/filter-menu";
 import SegmentBar from "@/components/_common/segment-bar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/_ui/select";
 import DetailSection from "./detail-section";
 import PipelineHealth from "./pipeline-health";
 import ActivityTrend from "./activity-trend";
 import PennylaneSection from "./pennylane-section";
 import { etiquettes, membre } from "@/lib/cockpit";
 import { aujourdhui } from "@/lib/format";
-import { ETAPES, type Entreprise, type Etape } from "@/server/crm-types";
+import {
+  ETAPES,
+  SEGMENTS,
+  TYPES_ECHANGE,
+  type Entreprise,
+  type Etape,
+  type Segment,
+} from "@/server/crm-types";
 import { useCockpit } from "@/stores/cockpit-store";
 import BuildingIcon from "@/public/assets/images/companies/detail/building.svg";
 import XIcon from "@/public/assets/images/companies/detail/x.svg";
@@ -33,16 +47,23 @@ import MailIcon from "@/public/assets/images/companies/detail/mail-04.svg";
 import PhoneIcon from "@/public/assets/images/companies/detail/phone.svg";
 
 const ETAPE_OPTIONS = ETAPES.map((etape) => ({ value: etape, label: etape }));
+const SEGMENT_OPTIONS = SEGMENTS.map((segment) => ({ value: segment, label: segment }));
 
-type Brouillon = Pick<Entreprise, "etape" | "chances" | "pipeline" | "suite" | "notes">;
+type Brouillon = Pick<Entreprise, "etape" | "segment" | "chances" | "pipeline" | "suite" | "notes"> & {
+  echangeDate: string;
+  echangeLibelle: string;
+};
 
 function brouillonDe(e: Entreprise): Brouillon {
   return {
     etape: e.etape,
+    segment: e.segment,
     chances: e.chances,
     pipeline: e.pipeline,
     suite: e.suite,
     notes: e.notes,
+    echangeDate: e.dernierEchange?.date || aujourdhui(),
+    echangeLibelle: e.dernierEchange?.libelle || TYPES_ECHANGE[0],
   };
 }
 
@@ -78,13 +99,25 @@ export default function CompanyDetail() {
         : brouillon.etape === "Perdu"
           ? 0
           : brouillon.chances;
+
+    const echangeModifie =
+      brouillon.echangeDate !== company.dernierEchange?.date ||
+      brouillon.echangeLibelle !== company.dernierEchange?.libelle;
+
+    const dernierEchange = echangeModifie
+      ? { date: brouillon.echangeDate, libelle: brouillon.echangeLibelle.slice(0, 40) }
+      : brouillon.etape !== company.etape
+        ? { date: aujourdhui(), libelle: `Passé en ${brouillon.etape}`.slice(0, 40) }
+        : company.dernierEchange;
+
     await modifier(company.id, {
-      ...brouillon,
+      etape: brouillon.etape,
+      segment: brouillon.segment,
       chances,
-      dernierEchange:
-        brouillon.etape !== company.etape
-          ? { date: aujourdhui(), libelle: `Passé en ${brouillon.etape}`.slice(0, 40) }
-          : company.dernierEchange,
+      pipeline: brouillon.pipeline,
+      suite: brouillon.suite,
+      notes: brouillon.notes,
+      dernierEchange,
     });
     toast({
       ton: "succes",
@@ -137,7 +170,7 @@ export default function CompanyDetail() {
               <div className="flex min-w-0 flex-col gap-3">
                 <h2 className="truncate">{company.nom}</h2>
                 <div className="flex flex-wrap items-center gap-[3px]">
-                  {etiquettes(company).map((tag) => (
+                  {etiquettes({ ...company, segment: brouillon.segment, etape: brouillon.etape }).map((tag) => (
                     <Tag key={tag.libelle} tone={tag.ton} size="sm">
                       {tag.libelle}
                     </Tag>
@@ -190,17 +223,57 @@ export default function CompanyDetail() {
             </DetailSection>
 
             <DetailSection
-              title="Étape et suite"
+              title="Étape et suivi"
               action={
-                <FilterMenu
-                  value={brouillon.etape}
-                  options={ETAPE_OPTIONS}
-                  onChange={(v) => maj("etape", v as Etape)}
-                  align="end"
-                />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <FilterMenu
+                    label="Segment"
+                    value={brouillon.segment}
+                    options={SEGMENT_OPTIONS}
+                    onChange={(v) => maj("segment", v as Segment)}
+                    align="end"
+                  />
+                  <FilterMenu
+                    label="Étape"
+                    value={brouillon.etape}
+                    options={ETAPE_OPTIONS}
+                    onChange={(v) => maj("etape", v as Etape)}
+                    align="end"
+                  />
+                </div>
               }
             >
               <div className="flex flex-col gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Dernier échange (Date)" htmlFor="fiche-echange-date">
+                    <Input
+                      id="fiche-echange-date"
+                      type="date"
+                      max={aujourdhui()}
+                      value={brouillon.echangeDate}
+                      onChange={(e) => maj("echangeDate", e.target.value)}
+                      className="tabular-nums"
+                    />
+                  </Field>
+                  <Field label="Type d'échange" htmlFor="fiche-echange-type">
+                    <Select
+                      value={brouillon.echangeLibelle}
+                      onValueChange={(v) => maj("echangeLibelle", v)}
+                    >
+                      <SelectTrigger id="fiche-echange-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TYPES_ECHANGE.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+
                 {brouillon.etape !== "Client" && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Pipeline (FCFA HT)" htmlFor="fiche-pipeline">

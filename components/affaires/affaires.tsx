@@ -51,7 +51,7 @@ function Carte({
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="leading-[1.2]">{e.nom}</h3>
-        <Tag tone={SEGMENT_TONS[e.segment]} size="sm">
+        <Tag tone={SEGMENT_TONS[e.segment] ?? "neutral"} size="sm">
           {e.segment}
         </Tag>
       </div>

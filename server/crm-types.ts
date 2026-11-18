@@ -1,11 +1,52 @@
 // Les types et les listes du CRM, sans rien qui dépende de Node : la page peut les importer.
 
-export const SEGMENTS = ['Grand compte', 'PME', 'TPE', 'Indépendant'] as const
+export const SEGMENTS = [
+  'Restaurant',
+  'Hôtel',
+  'Particulier',
+  'PME',
+  'TPE',
+  'Boutique & Commerce',
+  'Atelier & Artisanat',
+  'Santé & Clinique',
+  'École & Formation',
+  'Grand compte',
+  'Indépendant',
+  'Autre',
+] as const
 export const ETAPES = ['Nouveau', 'Contacté', 'Rendez-vous', 'Devis envoyé', 'Gagné', 'Client', 'Perdu'] as const
+export const CANAUX_ORIGINE = [
+  'Prospection terrain',
+  'WhatsApp',
+  'Recommandation / Réseau',
+  'Appel téléphonique',
+  'Instagram',
+  'TikTok',
+  'Facebook',
+  'LinkedIn',
+  'Site web / Formulaire',
+  'Bouche-à-oreille',
+  'Événement / Salon',
+  'Autre',
+] as const
+export const TYPES_ECHANGE = [
+  'WhatsApp (Message / Vocal)',
+  'Appel téléphonique',
+  'Visite / Prospection terrain',
+  'Rendez-vous physique',
+  'Premier contact',
+  'Envoi de devis',
+  'E-mail',
+  'Message réseaux sociaux',
+  'Relance client',
+  'Autre échange',
+] as const
 export const TONS = ['blue', 'purple', 'green', 'moss', 'red', 'orange', 'amber', 'teal', 'yellow', 'neutral'] as const
 
 export type Segment = (typeof SEGMENTS)[number]
 export type Etape = (typeof ETAPES)[number]
+export type CanalOrigine = (typeof CANAUX_ORIGINE)[number]
+export type TypeEchange = (typeof TYPES_ECHANGE)[number]
 export type Ton = (typeof TONS)[number]
 
 export interface Membre {

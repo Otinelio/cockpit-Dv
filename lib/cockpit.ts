@@ -9,10 +9,18 @@ import {
 import { joursDepuis } from "@/lib/format";
 
 export const SEGMENT_TONS: Record<Segment, Ton> = {
-  "Grand compte": "blue",
+  Restaurant: "orange",
+  Hôtel: "blue",
+  Particulier: "teal",
   PME: "moss",
   TPE: "yellow",
+  "Boutique & Commerce": "amber",
+  "Atelier & Artisanat": "purple",
+  "Santé & Clinique": "green",
+  "École & Formation": "blue",
+  "Grand compte": "blue",
   Indépendant: "purple",
+  Autre: "neutral",
 };
 
 export const ETAPE_TONS: Record<Etape, Ton> = {
@@ -26,13 +34,23 @@ export const ETAPE_TONS: Record<Etape, Ton> = {
 };
 
 const ETIQUETTE_TONS: Record<string, Ton> = {
+  "Prospection terrain": "teal",
+  WhatsApp: "green",
+  "Recommandation / Réseau": "blue",
+  Recommandation: "blue",
+  "Appel téléphonique": "green",
+  Instagram: "red",
+  TikTok: "purple",
+  Facebook: "blue",
+  LinkedIn: "blue",
+  "Site web / Formulaire": "neutral",
+  "Site web": "neutral",
+  "Bouche-à-oreille": "amber",
+  "Événement / Salon": "orange",
+  Salon: "orange",
   Récurrent: "purple",
   Upsell: "purple",
-  Recommandation: "blue",
-  LinkedIn: "blue",
-  Salon: "orange",
-  Instagram: "red",
-  "Site web": "neutral",
+  Autre: "neutral",
 };
 
 export const ETAPES_PIPELINE: Etape[] = [
@@ -57,8 +75,8 @@ export type Etiquette = { libelle: string; ton: Ton };
 
 export function etiquettes(e: Entreprise): Etiquette[] {
   return [
-    { libelle: e.segment, ton: SEGMENT_TONS[e.segment] },
-    { libelle: e.etape, ton: ETAPE_TONS[e.etape] },
+    { libelle: e.segment, ton: SEGMENT_TONS[e.segment] ?? ("neutral" as Ton) },
+    { libelle: e.etape, ton: ETAPE_TONS[e.etape] ?? ("neutral" as Ton) },
     ...e.etiquettes.map((libelle) => ({
       libelle,
       ton: ETIQUETTE_TONS[libelle] ?? ("neutral" as Ton),
