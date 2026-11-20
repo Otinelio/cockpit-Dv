@@ -100,7 +100,7 @@ export function partagerEtiquettes(liste: Etiquette[]) {
 }
 
 export type Tri = "pipeline" | "nom" | "echange" | "affaires" | "chances";
-export type Vue = "toutes" | "prospects" | "clients";
+export type Vue = "toutes" | "prospects" | "clients" | "pipeline";
 
 export const TOUS = "tous";
 export const TOUTES = "toutes";

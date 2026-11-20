@@ -12,28 +12,21 @@ import { api } from "@/lib/api";
 import { ETAPES_PIPELINE, ETAPE_POINTS } from "@/lib/cockpit";
 import { euros } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { RDV } from "@/data/agenda";
 import { useCockpit } from "@/stores/cockpit-store";
 import Logo from "@/public/assets/images/_common/logo.svg";
 import BuildingIcon from "@/public/assets/images/companies/sidebar/building.svg";
-import ClipboardIcon from "@/public/assets/images/companies/sidebar/clipboard.svg";
 import BarChartIcon from "@/public/assets/images/companies/sidebar/bar-chart-10.svg";
 import ListIcon from "@/public/assets/images/companies/sidebar/list.svg";
-import TargetIcon from "@/public/assets/images/companies/sidebar/target-05.svg";
 import WalletIcon from "@/public/assets/images/companies/sidebar/wallet.svg";
-import CalendarIcon from "@/public/assets/images/_common/calendar.svg";
 import { Layers, X } from "lucide-react";
 import PwaInstallBanner from "@/components/_common/pwa-install-banner";
 
 const LIENS: { href: string; label: string; icon: ComponentType<{ className?: string }> }[] = [
   { href: "/", label: "Tableau de bord", icon: BarChartIcon },
   { href: "/saas", label: "SaaStup & Lab", icon: Layers },
-  { href: "/entreprises", label: "Clients & CRM", icon: BuildingIcon },
-  { href: "/affaires", label: "Affaires", icon: ClipboardIcon },
+  { href: "/entreprises", label: "CRM", icon: BuildingIcon },
   { href: "/factures", label: "Finances & Factures", icon: WalletIcon },
-  { href: "/taches", label: "Tâches & Appels", icon: ListIcon },
-  { href: "/agenda", label: "Agenda", icon: CalendarIcon },
-  { href: "/mission", label: "Mission control", icon: TargetIcon },
+  { href: "/taches", label: "Tâches", icon: ListIcon },
 ];
 
 export default function SidebarContent() {
@@ -67,11 +60,7 @@ export default function SidebarContent() {
   const counts: Record<string, number | undefined> = {
     "/saas": saas.length > 0 ? saas.length : undefined,
     "/entreprises": crm ? entreprises.length : undefined,
-    "/affaires": crm
-      ? entreprises.filter((e) => ETAPES_PIPELINE.includes(e.etape)).length
-      : undefined,
     "/factures": tableau && retards > 0 ? retards : undefined,
-    "/agenda": RDV.filter((r) => r.j === 0).length,
     "/taches": taches.filter((t) => t.statut !== "terminee").length,
   };
 

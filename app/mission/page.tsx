@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import MissionControl from "@/components/mission/mission-control";
-
-export const metadata: Metadata = { title: "Mission control" };
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <MissionControl />;
+  redirect("/taches");
 }

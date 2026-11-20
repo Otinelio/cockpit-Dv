@@ -37,7 +37,7 @@ export default function MobileNav() {
       href: "/entreprises",
       label: "CRM",
       icon: Building2,
-      actif: pathname.startsWith("/entreprises") || pathname.startsWith("/affaires"),
+      actif: pathname.startsWith("/entreprises"),
     },
     {
       href: "/factures",

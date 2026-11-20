@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import Affaires from "@/components/affaires/affaires";
-
-export const metadata: Metadata = { title: "Affaires" };
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <Affaires />;
+  redirect("/entreprises");
 }
