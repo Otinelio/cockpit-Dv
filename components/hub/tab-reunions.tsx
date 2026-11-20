@@ -13,38 +13,24 @@ import {
 } from "@/components/_ui/dialog";
 import Field from "@/components/_ui/field";
 import { Input } from "@/components/_ui/input";
-import Select from "@/components/_ui/select";
 import Tag from "@/components/_ui/tag";
 import { useHub } from "@/stores/hub-store";
 import { useCockpit } from "@/stores/cockpit-store";
 import type {
   DecisionReunion,
   ResolutionReunion,
-  ReunionDV,
   StatutDecision,
 } from "@/server/hub-types";
 import {
   ArrowRight,
   Calendar,
   CheckCircle2,
-  Clock,
   FileCheck,
   MapPin,
-  MessageSquare,
   Plus,
   Search,
   Trash2,
-  Users,
-  Video,
 } from "lucide-react";
-
-const STATUTS_DECISION: { value: StatutDecision; label: string }[] = [
-  { value: "proposee", label: "Proposée" },
-  { value: "validee", label: "Validée" },
-  { value: "en_cours", label: "En cours d'exécution" },
-  { value: "executee", label: "Exécutée" },
-  { value: "abandonnee", label: "Abandonnée" },
-];
 
 function statutDecisionBadge(s: StatutDecision) {
   switch (s) {
@@ -64,7 +50,6 @@ function statutDecisionBadge(s: StatutDecision) {
 export default function TabReunions() {
   const reunions = useHub((s) => s.reunions);
   const ajouterReunion = useHub((s) => s.ajouterReunion);
-  const modifierReunion = useHub((s) => s.modifierReunion);
   const supprimerReunion = useHub((s) => s.supprimerReunion);
   const transformerResolutionEnTache = useHub((s) => s.transformerResolutionEnTache);
   const utilisateur = useCockpit((s) => s.utilisateurActif);
@@ -74,7 +59,6 @@ export default function TabReunions() {
   const [conversionEnCoursId, setConversionEnCoursId] = useState<string | null>(null);
 
   // Formulaire nouvelle réunion
-  const [form, setForm] = useState({
   const [form, setForm] = useState(() => ({
     titre: "",
     dateHeure: new Date().toISOString().slice(0, 16),
@@ -86,7 +70,6 @@ export default function TabReunions() {
     resolutionTitre: "",
     resolutionResponsable: utilisateur || "Othnelio",
     resolutionEcheance: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-  });
   }));
   const [sauvegardeEnCours, setSauvegardeEnCours] = useState(false);
 
@@ -259,7 +242,6 @@ export default function TabReunions() {
 
                   <Button
                     variant="ghost"
-                    size="icon-xs"
                     size="icon-sm"
                     onClick={() => {
                       if (confirm(`Supprimer cette réunion du registre ?`)) {
@@ -402,7 +384,6 @@ export default function TabReunions() {
           </DialogHeader>
 
           <form onSubmit={handleCreerReunion} className="space-y-4 py-2">
-            <Field label="Titre ou objet de la réunion">
             <Field label="Titre ou objet de la réunion" htmlFor="reu-titre">
               <Input
                 id="reu-titre"
@@ -414,7 +395,6 @@ export default function TabReunions() {
             </Field>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Date et heure">
               <Field label="Date et heure" htmlFor="reu-date">
                 <Input
                   id="reu-date"
@@ -425,7 +405,6 @@ export default function TabReunions() {
                 />
               </Field>
 
-              <Field label="Lieu ou format">
               <Field label="Lieu ou format" htmlFor="reu-lieu">
                 <Input
                   id="reu-lieu"
@@ -437,7 +416,6 @@ export default function TabReunions() {
               </Field>
             </div>
 
-            <Field label="Ordre du jour (un point par ligne)">
             <Field label="Ordre du jour (un point par ligne)" htmlFor="reu-odj">
               <textarea
                 id="reu-odj"
@@ -449,7 +427,6 @@ export default function TabReunions() {
               />
             </Field>
 
-            <Field label="Compte-rendu et notes d'échanges">
             <Field label="Compte-rendu et notes d'échanges" htmlFor="reu-notes">
               <textarea
                 id="reu-notes"
@@ -466,7 +443,6 @@ export default function TabReunions() {
                 Décision & Action immédiate
               </h4>
 
-              <Field label="Décision clé actée (optionnel)">
               <Field label="Décision clé actée (optionnel)" htmlFor="reu-dec">
                 <Input
                   id="reu-dec"
@@ -477,7 +453,6 @@ export default function TabReunions() {
               </Field>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Résolution opérationnelle (génère une tâche)">
                 <Field label="Résolution opérationnelle (génère une tâche)" htmlFor="reu-res">
                   <Input
                     id="reu-res"
@@ -487,7 +462,6 @@ export default function TabReunions() {
                   />
                 </Field>
 
-                <Field label="Responsable">
                 <Field label="Responsable" htmlFor="reu-resp">
                   <Input
                     id="reu-resp"

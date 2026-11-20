@@ -6,7 +6,6 @@ import Field from "@/components/_ui/field";
 import { Input } from "@/components/_ui/input";
 import Tag from "@/components/_ui/tag";
 import { useHub } from "@/stores/hub-store";
-import { useCockpit } from "@/stores/cockpit-store";
 import {
   Building2,
   Edit3,
@@ -17,14 +16,12 @@ import {
   Save,
   Shield,
   CreditCard,
-  CheckCircle,
   FileText,
 } from "lucide-react";
 
 export default function TabIdentite() {
   const identite = useHub((s) => s.identite);
   const mettreAJourIdentite = useHub((s) => s.mettreAJourIdentite);
-  const utilisateur = useCockpit((s) => s.utilisateurActif);
 
   const [enEdition, setEnEdition] = useState(false);
   const [form, setForm] = useState(identite || null);
@@ -290,7 +287,6 @@ export default function TabIdentite() {
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Nom commercial">
               <Field label="Nom commercial" htmlFor="id-nom">
                 <Input
                   id="id-nom"
@@ -302,7 +298,6 @@ export default function TabIdentite() {
                 />
               </Field>
 
-              <Field label="Slogan">
               <Field label="Slogan" htmlFor="id-slogan">
                 <Input
                   id="id-slogan"
@@ -314,7 +309,6 @@ export default function TabIdentite() {
               </Field>
             </div>
 
-            <Field label="Description de l’entreprise">
             <Field label="Description de l’entreprise" htmlFor="id-description">
               <textarea
                 id="id-description"
@@ -328,7 +322,6 @@ export default function TabIdentite() {
             </Field>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Mission">
               <Field label="Mission" htmlFor="id-mission">
                 <textarea
                   id="id-mission"
@@ -341,7 +334,6 @@ export default function TabIdentite() {
                 />
               </Field>
 
-              <Field label="Vision">
               <Field label="Vision" htmlFor="id-vision">
                 <textarea
                   id="id-vision"
@@ -357,7 +349,6 @@ export default function TabIdentite() {
 
             <Field
               label="Valeurs (séparées par des virgules)"
-              description="Ex: Excellence technique, Intégrité, Impact local"
               htmlFor="id-valeurs"
               hint="Ex: Excellence technique, Intégrité, Impact local"
             >
@@ -381,7 +372,6 @@ export default function TabIdentite() {
             </Field>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-border">
-              <Field label="Téléphone principal">
               <Field label="Téléphone principal" htmlFor="id-tel">
                 <Input
                   id="id-tel"
@@ -392,7 +382,6 @@ export default function TabIdentite() {
                 />
               </Field>
 
-              <Field label="Email principal">
               <Field label="Email principal" htmlFor="id-email">
                 <Input
                   id="id-email"
@@ -404,7 +393,6 @@ export default function TabIdentite() {
                 />
               </Field>
 
-              <Field label="Site web">
               <Field label="Site web" htmlFor="id-site">
                 <Input
                   id="id-site"
@@ -416,7 +404,6 @@ export default function TabIdentite() {
               </Field>
             </div>
 
-            <Field label="Adresse physique">
             <Field label="Adresse physique" htmlFor="id-adresse">
               <Input
                 id="id-adresse"
@@ -428,7 +415,6 @@ export default function TabIdentite() {
             </Field>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
-              <Field label="NIF (Numéro d’Identification Fiscale)">
               <Field label="NIF (Numéro d’Identification Fiscale)" htmlFor="id-nif">
                 <Input
                   id="id-nif"
@@ -438,7 +424,6 @@ export default function TabIdentite() {
                 />
               </Field>
 
-              <Field label="RCCM (Registre du Commerce)">
               <Field label="RCCM (Registre du Commerce)" htmlFor="id-rccm">
                 <Input
                   id="id-rccm"
@@ -454,7 +439,6 @@ export default function TabIdentite() {
                 Coordonnées de règlement (Factures PDF)
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Field label="Banque / Compte">
                 <Field label="Banque / Compte" htmlFor="id-banque">
                   <Input
                     id="id-banque"
@@ -475,7 +459,6 @@ export default function TabIdentite() {
                   />
                 </Field>
 
-                <Field label="Numéro T-Money">
                 <Field label="Numéro T-Money" htmlFor="id-tmoney">
                   <Input
                     id="id-tmoney"
@@ -496,7 +479,6 @@ export default function TabIdentite() {
                   />
                 </Field>
 
-                <Field label="Numéro Flooz">
                 <Field label="Numéro Flooz" htmlFor="id-flooz">
                   <Input
                     id="id-flooz"
@@ -518,7 +500,6 @@ export default function TabIdentite() {
                 </Field>
               </div>
 
-              <Field label="Mentions obligatoires sur factures">
               <Field label="Mentions obligatoires sur factures" htmlFor="id-mentions">
                 <Input
                   id="id-mentions"
