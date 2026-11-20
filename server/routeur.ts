@@ -18,7 +18,9 @@ import { magasinTaches } from './dv-taches'
 import { magasinDepenses } from './dv-depenses'
 import { magasinSaas } from './dv-saas'
 import { magasinContrats } from './dv-contrats'
+import { hubService } from './hub-service'
 import type { ActiviteDV, ContratDV, DepenseDV, SaasDV, TacheDV } from './dv-types'
+import type { CategorieCoffre, IdentiteEntreprise, ReunionDV, VisionStrategique } from './hub-types'
 
 const TVA: CodeTva[] = ['FR_200', 'FR_100', 'FR_55', 'TG_180', 'exempt']
 
@@ -132,7 +134,8 @@ async function router(req: Request): Promise<Response> {
   if (methode === 'POST' || methode === 'PUT' || methode === 'DELETE') {
     // Protection basique cross-site
     if (req.headers.get('sec-fetch-site') === 'cross-site') throw new ErreurHttp(403, 'Requête refusée')
-    if (methode !== 'DELETE' && !String(req.headers.get('content-type')).startsWith('application/json')) {
+    const estUploadFichier = chemin === '/api/hub/documents/fichiers/upload'
+    if (methode !== 'DELETE' && !estUploadFichier && !String(req.headers.get('content-type')).startsWith('application/json')) {
       throw new ErreurHttp(415, 'JSON attendu')
     }
   }
@@ -379,6 +382,201 @@ async function router(req: Request): Promise<Response> {
     if (methode === 'DELETE') {
       const ok = await magasinContrats.supprimer(id)
       if (!ok) throw new ErreurHttp(404, 'Contrat introuvable')
+      return json(200, { ok: true })
+    }
+  }
+
+  // === DIGITALVISION HUB (ESPACE ENTREPRISE) ===
+
+  // 1. Identité de l'entreprise
+  if (methode === 'GET' && chemin === '/api/hub/identite') {
+    return json(200, await hubService.obtenirIdentite())
+  }
+  if (methode === 'PUT' && chemin === '/api/hub/identite') {
+    const modifs = (await lireJson(req)) as Partial<IdentiteEntreprise>
+    const identite = await hubService.mettreAJourIdentite(modifs, auteur)
+    return json(200, identite)
+  }
+
+  // 2. Coffre-fort numérique
+  if (methode === 'GET' && chemin === '/api/hub/coffre') {
+    return json(200, await hubService.listerCoffre())
+  }
+  if (methode === 'POST' && chemin === '/api/hub/coffre') {
+    const b = (await lireJson(req)) as {
+      nomService: string
+      categorie: CategorieCoffre
+      url?: string
+      identifiant: string
+      emailAssocie?: string
+      secret: string
+      notes?: string
+      responsable: string
+    }
+    if (!b.nomService || !b.identifiant || b.secret === undefined) {
+      throw new ErreurHttp(400, 'Nom du service, identifiant et mot de passe requis')
+    }
+    const nouv = await hubService.ajouterEntreeCoffre(b, auteur)
+    return json(201, nouv)
+  }
+  const routeCoffreReveler = chemin.match(/^\/api\/hub\/coffre\/([a-z0-9-]+)\/reveler$/)
+  if (routeCoffreReveler && methode === 'POST') {
+    const id = routeCoffreReveler[1]
+    const b = (await lireJson(req)) as { action?: 'consultation' | 'copie'; motDePasse?: string }
+    if (b.motDePasse) {
+      const ok = await magasinAuth.verifier(auteur, b.motDePasse)
+      if (!ok) throw new ErreurHttp(401, 'Mot de passe utilisateur incorrect')
+    }
+    const secret = await hubService.revelerSecretCoffre(id, auteur, b.action ?? 'consultation')
+    if (secret === null) throw new ErreurHttp(404, 'Entrée introuvable')
+    return json(200, { secret })
+  }
+  const routeCoffreEntree = chemin.match(/^\/api\/hub\/coffre\/([a-z0-9-]+)$/)
+  if (routeCoffreEntree) {
+    const id = routeCoffreEntree[1]
+    if (methode === 'PUT') {
+      const modifs = (await lireJson(req)) as {
+        nomService?: string
+        categorie?: CategorieCoffre
+        url?: string
+        identifiant?: string
+        emailAssocie?: string
+        secret?: string
+        notes?: string
+        responsable?: string
+      }
+      const misAJour = await hubService.modifierEntreeCoffre(id, modifs, auteur)
+      if (!misAJour) throw new ErreurHttp(404, 'Entrée introuvable')
+      return json(200, misAJour)
+    }
+    if (methode === 'DELETE') {
+      const ok = await hubService.supprimerEntreeCoffre(id, auteur)
+      if (!ok) throw new ErreurHttp(404, 'Entrée introuvable')
+      return json(200, { ok: true })
+    }
+  }
+
+  // 3. Vision et Stratégie
+  if (methode === 'GET' && chemin === '/api/hub/strategie') {
+    return json(200, await hubService.obtenirStrategie())
+  }
+  if (methode === 'PUT' && chemin === '/api/hub/strategie') {
+    const modifs = (await lireJson(req)) as Partial<VisionStrategique>
+    const strat = await hubService.mettreAJourStrategie(modifs, auteur)
+    return json(200, strat)
+  }
+
+  // 4. Associés et Gouvernance
+  if (methode === 'GET' && chemin === '/api/hub/associes') {
+    return json(200, await hubService.obtenirAssocies())
+  }
+  const routeAssocie = chemin.match(/^\/api\/hub\/associes\/([a-zA-Z0-9_-]+)$/)
+  if (routeAssocie && methode === 'PUT') {
+    const id = routeAssocie[1]
+    const modifs = (await lireJson(req)) as Record<string, unknown>
+    const mis = await hubService.mettreAJourAssocie(id, modifs, auteur)
+    if (!mis) throw new ErreurHttp(404, 'Associé introuvable')
+    return json(200, mis)
+  }
+
+  // 5. Réunions et Décisions
+  if (methode === 'GET' && chemin === '/api/hub/reunions') {
+    return json(200, await hubService.obtenirReunions())
+  }
+  if (methode === 'POST' && chemin === '/api/hub/reunions') {
+    const b = (await lireJson(req)) as Omit<ReunionDV, 'id' | 'creeLe'>
+    if (!b.titre) throw new ErreurHttp(400, 'Titre de la réunion requis')
+    const reu = await hubService.ajouterReunion(b, auteur)
+    return json(201, reu)
+  }
+  const routeReunion = chemin.match(/^\/api\/hub\/reunions\/([a-z0-9-]+)$/)
+  if (routeReunion) {
+    const id = routeReunion[1]
+    if (methode === 'PUT') {
+      const modifs = (await lireJson(req)) as Partial<ReunionDV>
+      const reu = await hubService.modifierReunion(id, modifs, auteur)
+      if (!reu) throw new ErreurHttp(404, 'Réunion introuvable')
+      return json(200, reu)
+    }
+    if (methode === 'DELETE') {
+      const ok = await hubService.supprimerReunion(id)
+      if (!ok) throw new ErreurHttp(404, 'Réunion introuvable')
+      return json(200, { ok: true })
+    }
+  }
+
+  // 6. Documents et Archives
+  if (methode === 'GET' && chemin === '/api/hub/documents') {
+    return json(200, await hubService.obtenirDocuments())
+  }
+  if (methode === 'POST' && chemin === '/api/hub/documents/dossiers') {
+    const b = (await lireJson(req)) as { nom?: string; parentId?: string | null }
+    if (!b.nom) throw new ErreurHttp(400, 'Nom du dossier requis')
+    const dos = await hubService.creerDossier(b.nom, b.parentId ?? null)
+    return json(201, dos)
+  }
+  const routeDossier = chemin.match(/^\/api\/hub\/documents\/dossiers\/([a-z0-9-]+)$/)
+  if (routeDossier) {
+    const id = routeDossier[1]
+    if (methode === 'PUT') {
+      const b = (await lireJson(req)) as { nom?: string }
+      if (!b.nom) throw new ErreurHttp(400, 'Nom requis')
+      const ok = await hubService.renommerDossier(id, b.nom)
+      if (!ok) throw new ErreurHttp(404, 'Dossier introuvable')
+      return json(200, { ok: true })
+    }
+    if (methode === 'DELETE') {
+      const ok = await hubService.supprimerDossier(id)
+      if (!ok) throw new ErreurHttp(404, 'Dossier introuvable')
+      return json(200, { ok: true })
+    }
+  }
+  if (methode === 'POST' && chemin === '/api/hub/documents/fichiers/upload') {
+    const formData = await req.formData()
+    const fichier = formData.get('fichier') as File | null
+    if (!fichier) throw new ErreurHttp(400, 'Fichier manquant')
+    const dossierId = String(formData.get('dossierId') || 'dos-admin')
+    const description = formData.get('description') ? String(formData.get('description')) : undefined
+    const projetSaasId = formData.get('projetSaasId') ? String(formData.get('projetSaasId')) : undefined
+    const clientCrmId = formData.get('clientCrmId') ? String(formData.get('clientCrmId')) : undefined
+    const reunionId = formData.get('reunionId') ? String(formData.get('reunionId')) : undefined
+
+    const buffer = Buffer.from(await fichier.arrayBuffer())
+    const doc = await hubService.enregistrerFichierDocument(
+      fichier.name,
+      buffer,
+      fichier.type || 'application/octet-stream',
+      dossierId,
+      auteur,
+      description,
+      { projetSaasId, clientCrmId, reunionId },
+    )
+    return json(201, doc)
+  }
+  const routeFichier = chemin.match(/^\/api\/hub\/documents\/fichiers\/([a-z0-9-]+)$/)
+  if (routeFichier) {
+    const id = routeFichier[1]
+    if (methode === 'GET') {
+      const res = await hubService.obtenirFichierBinaire(id)
+      if (!res) throw new ErreurHttp(404, 'Fichier introuvable sur le disque')
+      return new Response(new Uint8Array(res.buffer), {
+        headers: {
+          'Content-Type': res.document.mimeType || 'application/octet-stream',
+          'Content-Disposition': `inline; filename="${encodeURIComponent(res.document.nomOriginal)}"`,
+          'Content-Length': String(res.document.tailleOctets),
+          'Cache-Control': 'no-store',
+        },
+      })
+    }
+    if (methode === 'PUT') {
+      const b = (await lireJson(req)) as { nom?: string; dossierId?: string }
+      if (b.nom) await hubService.renommerDocument(id, b.nom)
+      if (b.dossierId) await hubService.deplacerDocument(id, b.dossierId)
+      return json(200, { ok: true })
+    }
+    if (methode === 'DELETE') {
+      const ok = await hubService.supprimerDocument(id)
+      if (!ok) throw new ErreurHttp(404, 'Fichier introuvable')
       return json(200, { ok: true })
     }
   }

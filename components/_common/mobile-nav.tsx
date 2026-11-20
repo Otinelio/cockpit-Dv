@@ -10,6 +10,7 @@ import {
   Building2,
   Wallet,
   CheckSquare,
+  Briefcase,
 } from "lucide-react";
 
 export default function MobileNav() {
@@ -25,6 +26,12 @@ export default function MobileNav() {
       label: "Cockpit",
       icon: LayoutDashboard,
       actif: pathname === "/",
+    },
+    {
+      href: "/hub",
+      label: "Hub",
+      icon: Briefcase,
+      actif: pathname.startsWith("/hub"),
     },
     {
       href: "/saas",

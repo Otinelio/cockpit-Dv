@@ -6,6 +6,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { dossierCockpit } from './stockage-chemin'
 import { ENTREPRISE, TVA_TAUX } from '../data/entreprise'
+import { hubService } from './hub-service'
 import type { MagasinCrm } from './crm'
 import { genererPdf } from './pdf-facture'
 import type { CodeTva, NouvelleFacture, PLCustomer, PLCustomerInvoice, PLTransaction, Source } from './types'
@@ -206,17 +207,27 @@ export function sourceLocale(crm: MagasinCrm): SourceLocale {
       if (!facture.numero) throw erreur(404, 'Ce brouillon n’a pas encore de PDF : finalise-le d’abord')
       const client = (await clients()).find((c) => c.id === facture.clientId)
       const ttc = ttcDe(facture)
+      const identite = await hubService.obtenirIdentite().catch(() => null)
+      const paiementStr = identite
+        ? [
+            identite.coordonneesPaiement.banque,
+            identite.coordonneesPaiement.ibanOuRib ? `IBAN/RIB : ${identite.coordonneesPaiement.ibanOuRib}` : '',
+            identite.coordonneesPaiement.tMoney ? `T-Money : ${identite.coordonneesPaiement.tMoney}` : '',
+            identite.coordonneesPaiement.flooz ? `Flooz : ${identite.coordonneesPaiement.flooz}` : '',
+          ].filter(Boolean).join('\n')
+        : ENTREPRISE.paiement
+
       const octets = await genererPdf({
         emetteur: {
-          nom: ENTREPRISE.nom,
-          adresse: ENTREPRISE.adresse,
-          email: ENTREPRISE.email,
-          telephone: ENTREPRISE.telephone,
-          nif: ENTREPRISE.nif,
-          rccm: ENTREPRISE.rccm,
+          nom: identite?.nomCommercial || ENTREPRISE.nom,
+          adresse: identite?.adressePhysique || ENTREPRISE.adresse,
+          email: identite?.emails?.[0] || ENTREPRISE.email,
+          telephone: identite?.telephones?.[0] || ENTREPRISE.telephone,
+          nif: identite?.nif || ENTREPRISE.nif,
+          rccm: identite?.rccm || ENTREPRISE.rccm,
         },
-        paiement: ENTREPRISE.paiement,
-        mentions: ENTREPRISE.mentions,
+        paiement: paiementStr,
+        mentions: identite?.coordonneesPaiement.mentions || ENTREPRISE.mentions,
         facture: {
           numero: facture.numero,
           date: facture.date!,

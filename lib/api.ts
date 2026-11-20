@@ -6,6 +6,17 @@ import type {
   SaasDV,
   TacheDV,
 } from "@/server/dv-types";
+import type {
+  AssocieDV,
+  AuditAccesCoffre,
+  CategorieCoffre,
+  DocumentDV,
+  DossierDV,
+  EntreeCoffreVue,
+  IdentiteEntreprise,
+  ReunionDV,
+  VisionStrategique,
+} from "@/server/hub-types";
 import type { NouvelleFacture, Tableau } from "@/server/types";
 
 function getAuteur(): string {
@@ -81,6 +92,131 @@ export const api = {
   ajouterContrat: (c: Omit<ContratDV, "id" | "creeLe">) => poster<ContratDV>("/api/contrats", c),
   modifierContrat: (id: string, modifs: Partial<ContratDV>) => modifier<ContratDV>(`/api/contrats/${id}`, modifs),
   supprimerContrat: (id: string) => supprimer<{ ok: true }>(`/api/contrats/${id}`),
+
+  // Hub DigitalVision (Espace Entreprise)
+  hub: {
+    // 1. Identité
+    identite: () => appel<IdentiteEntreprise>("/api/hub/identite"),
+    mettreAJourIdentite: (modifs: Partial<IdentiteEntreprise>) =>
+      modifier<IdentiteEntreprise>("/api/hub/identite", modifs),
+
+    // 2. Coffre-fort
+    coffre: () =>
+      appel<{ entrees: EntreeCoffreVue[]; audits: AuditAccesCoffre[] }>(
+        "/api/hub/coffre",
+      ),
+    ajouterEntreeCoffre: (entree: {
+      nomService: string;
+      categorie: CategorieCoffre;
+      url?: string;
+      identifiant: string;
+      emailAssocie?: string;
+      secret: string;
+      notes?: string;
+      responsable: string;
+    }) => poster<EntreeCoffreVue>("/api/hub/coffre", entree),
+    modifierEntreeCoffre: (
+      id: string,
+      modifs: {
+        nomService?: string;
+        categorie?: CategorieCoffre;
+        url?: string;
+        identifiant?: string;
+        emailAssocie?: string;
+        secret?: string;
+        notes?: string;
+        responsable?: string;
+      },
+    ) => modifier<EntreeCoffreVue>(`/api/hub/coffre/${id}`, modifs),
+    revelerSecretCoffre: (
+      id: string,
+      action: "consultation" | "copie" = "consultation",
+      motDePasse?: string,
+    ) =>
+      poster<{ secret: string }>(`/api/hub/coffre/${id}/reveler`, {
+        action,
+        motDePasse,
+      }),
+    supprimerEntreeCoffre: (id: string) =>
+      supprimer<{ ok: boolean }>(`/api/hub/coffre/${id}`),
+
+    // 3. Vision et Stratégie
+    strategie: () => appel<VisionStrategique>("/api/hub/strategie"),
+    mettreAJourStrategie: (modifs: Partial<VisionStrategique>) =>
+      modifier<VisionStrategique>("/api/hub/strategie", modifs),
+
+    // 4. Associés
+    associes: () => appel<AssocieDV[]>("/api/hub/associes"),
+    modifierAssocie: (id: string, modifs: Partial<AssocieDV>) =>
+      modifier<AssocieDV>(`/api/hub/associes/${id}`, modifs),
+
+    // 5. Réunions
+    reunions: () => appel<ReunionDV[]>("/api/hub/reunions"),
+    ajouterReunion: (reu: Omit<ReunionDV, "id" | "creeLe">) =>
+      poster<ReunionDV>("/api/hub/reunions", reu),
+    modifierReunion: (id: string, modifs: Partial<ReunionDV>) =>
+      modifier<ReunionDV>(`/api/hub/reunions/${id}`, modifs),
+    supprimerReunion: (id: string) =>
+      supprimer<{ ok: boolean }>(`/api/hub/reunions/${id}`),
+
+    // 6. Documents
+    documents: () =>
+      appel<{ dossiers: DossierDV[]; documents: DocumentDV[] }>(
+        "/api/hub/documents",
+      ),
+    creerDossier: (nom: string, parentId?: string | null) =>
+      poster<DossierDV>("/api/hub/documents/dossiers", { nom, parentId }),
+    renommerDossier: (id: string, nom: string) =>
+      modifier<{ ok: boolean }>(`/api/hub/documents/dossiers/${id}`, { nom }),
+    supprimerDossier: (id: string) =>
+      supprimer<{ ok: boolean }>(`/api/hub/documents/dossiers/${id}`),
+    uploadFichier: async (
+      fichier: File,
+      dossierId: string,
+      description?: string,
+      liaisons?: {
+        projetSaasId?: string;
+        clientCrmId?: string;
+        reunionId?: string;
+      },
+    ) => {
+      const formData = new FormData();
+      formData.append("fichier", fichier);
+      formData.append("dossierId", dossierId);
+      if (description) formData.append("description", description);
+      if (liaisons?.projetSaasId)
+        formData.append("projetSaasId", liaisons.projetSaasId);
+      if (liaisons?.clientCrmId)
+        formData.append("clientCrmId", liaisons.clientCrmId);
+      if (liaisons?.reunionId)
+        formData.append("reunionId", liaisons.reunionId);
+
+      const auteur = getAuteur();
+      const res = await fetch("/api/hub/documents/fichiers/upload", {
+        method: "POST",
+        headers: {
+          "x-auteur": encodeURIComponent(auteur),
+        },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          (data as { erreur?: string }).erreur ?? `Erreur ${res.status}`,
+        );
+      }
+      return data as DocumentDV;
+    },
+    urlFichier: (id: string) => `/api/hub/documents/fichiers/${id}`,
+    renommerDocument: (id: string, nom: string) =>
+      modifier<{ ok: boolean }>(`/api/hub/documents/fichiers/${id}`, { nom }),
+    deplacerDocument: (id: string, dossierId: string) =>
+      modifier<{ ok: boolean }>(`/api/hub/documents/fichiers/${id}`, {
+        dossierId,
+      }),
+    supprimerDocument: (id: string) =>
+      supprimer<{ ok: boolean }>(`/api/hub/documents/fichiers/${id}`),
+  },
 
   // CRM & Tableau
   tableau: (frais = false) =>

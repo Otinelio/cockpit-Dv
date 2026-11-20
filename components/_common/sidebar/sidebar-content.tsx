@@ -18,11 +18,12 @@ import BuildingIcon from "@/public/assets/images/companies/sidebar/building.svg"
 import BarChartIcon from "@/public/assets/images/companies/sidebar/bar-chart-10.svg";
 import ListIcon from "@/public/assets/images/companies/sidebar/list.svg";
 import WalletIcon from "@/public/assets/images/companies/sidebar/wallet.svg";
-import { Layers, X } from "lucide-react";
+import { Briefcase, Layers, X } from "lucide-react";
 import PwaInstallBanner from "@/components/_common/pwa-install-banner";
 
 const LIENS: { href: string; label: string; icon: ComponentType<{ className?: string }> }[] = [
   { href: "/", label: "Tableau de bord", icon: BarChartIcon },
+  { href: "/hub", label: "DigitalVision Hub", icon: Briefcase },
   { href: "/saas", label: "SaaStup & Lab", icon: Layers },
   { href: "/entreprises", label: "CRM", icon: BuildingIcon },
   { href: "/factures", label: "Finances & Factures", icon: WalletIcon },
