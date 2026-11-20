@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Avatar from "@/components/_ui/avatar";
 import Button from "@/components/_ui/button";
 import {
   Dialog,
@@ -12,12 +13,14 @@ import {
 } from "@/components/_ui/dialog";
 import Field from "@/components/_ui/field";
 import { Input } from "@/components/_ui/input";
+import Select from "@/components/_ui/select";
 import Tag from "@/components/_ui/tag";
 import { useHub } from "@/stores/hub-store";
 import { useCockpit } from "@/stores/cockpit-store";
 import type {
   ActionStrategique,
   ObjectifMensuel,
+  ResolutionAnnuelle,
   StatutStrategique,
 } from "@/server/hub-types";
 import {
@@ -28,8 +31,20 @@ import {
   ListTodo,
   Plus,
   Target,
+  TrendingUp,
+  AlertCircle,
+  Clock,
   Sparkles,
 } from "lucide-react";
+
+const STATUTS: { value: StatutStrategique; label: string }[] = [
+  { value: "a_definir", label: "À définir" },
+  { value: "a_faire", label: "À faire" },
+  { value: "en_cours", label: "En cours" },
+  { value: "atteint", label: "Atteint" },
+  { value: "non_atteint", label: "Non atteint" },
+  { value: "abandonne", label: "Abandonné" },
+];
 
 function statutBadge(s: StatutStrategique) {
   switch (s) {
@@ -55,6 +70,7 @@ export default function TabStrategie() {
   const utilisateur = useCockpit((s) => s.utilisateurActif);
 
   const [modalObjectif, setModalObjectif] = useState(false);
+  const [nouvelObj, setNouvelObj] = useState({
   const [nouvelObj, setNouvelObj] = useState(() => ({
     titre: "",
     indicateur: "",
@@ -64,8 +80,11 @@ export default function TabStrategie() {
     responsable: utilisateur || "Othnelio",
     echeance: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     actionTitre: "",
+  });
   }));
   const [sauvegardeEnCours, setSauvegardeEnCours] = useState(false);
+
+  // Conversion en tâche feedback
   const [conversionEnCoursId, setConversionEnCoursId] = useState<string | null>(null);
 
   if (!strategie) {
@@ -438,6 +457,7 @@ export default function TabStrategie() {
           </DialogHeader>
 
           <form onSubmit={handleCreerObjectif} className="space-y-4 py-2">
+            <Field label="Intitulé de l'objectif">
             <Field label="Intitulé de l'objectif" htmlFor="obj-titre">
               <Input
                 id="obj-titre"
@@ -448,6 +468,7 @@ export default function TabStrategie() {
               />
             </Field>
 
+            <Field label="Indicateur de mesure (KPI)">
             <Field label="Indicateur de mesure (KPI)" htmlFor="obj-kpi">
               <Input
                 id="obj-kpi"
@@ -459,6 +480,7 @@ export default function TabStrategie() {
             </Field>
 
             <div className="grid grid-cols-3 gap-2">
+              <Field label="Cible">
               <Field label="Cible" htmlFor="obj-cible">
                 <Input
                   id="obj-cible"
@@ -469,6 +491,7 @@ export default function TabStrategie() {
                 />
               </Field>
 
+              <Field label="Actuel">
               <Field label="Actuel" htmlFor="obj-actuel">
                 <Input
                   id="obj-actuel"
@@ -478,6 +501,7 @@ export default function TabStrategie() {
                 />
               </Field>
 
+              <Field label="Unité">
               <Field label="Unité" htmlFor="obj-unite">
                 <Input
                   id="obj-unite"
@@ -489,6 +513,7 @@ export default function TabStrategie() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
+              <Field label="Responsable">
               <Field label="Responsable" htmlFor="obj-resp">
                 <Input
                   id="obj-resp"
@@ -500,6 +525,7 @@ export default function TabStrategie() {
                 />
               </Field>
 
+              <Field label="Échéance">
               <Field label="Échéance" htmlFor="obj-date">
                 <Input
                   id="obj-date"
@@ -513,6 +539,7 @@ export default function TabStrategie() {
 
             <Field
               label="Première action stratégique (optionnel)"
+              description="Sera immédiatement transformable en tâche pour l'équipe."
               htmlFor="obj-action"
               hint="Sera immédiatement transformable en tâche pour l'équipe."
             >

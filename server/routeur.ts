@@ -559,6 +559,7 @@ async function router(req: Request): Promise<Response> {
     if (methode === 'GET') {
       const res = await hubService.obtenirFichierBinaire(id)
       if (!res) throw new ErreurHttp(404, 'Fichier introuvable sur le disque')
+      return new Response(res.buffer, {
       return new Response(new Uint8Array(res.buffer), {
         headers: {
           'Content-Type': res.document.mimeType || 'application/octet-stream',

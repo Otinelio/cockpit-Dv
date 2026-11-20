@@ -8,14 +8,19 @@ import { dossierCockpit } from './stockage-chemin'
 import { ENTREPRISE } from '../data/entreprise'
 import { magasinActivite } from './dv-activite'
 import type {
+  ActionStrategique,
   AssocieDV,
   AuditAccesCoffre,
   CategorieCoffre,
+  DecisionReunion,
   DocumentDV,
   DossierDV,
   EntreeCoffreStockee,
   EntreeCoffreVue,
   IdentiteEntreprise,
+  ObjectifMensuel,
+  ResolutionAnnuelle,
+  ResolutionReunion,
   ReunionDV,
   VisionStrategique,
 } from './hub-types'
