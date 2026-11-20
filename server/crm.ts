@@ -237,6 +237,15 @@ export function magasinCrm(mode: 'demo' | 'pennylane' | 'local') {
       return base
     },
 
+    async supprimer(id: string): Promise<boolean> {
+      const crm = await lire()
+      const longAvant = crm.entreprises.length
+      crm.entreprises = crm.entreprises.filter((x) => x.id !== id)
+      if (crm.entreprises.length === longAvant) return false
+      await ecrire(crm)
+      return true
+    },
+
     /** Après l'envoi d'une facture : le dernier échange devient cette facture, et une affaire gagnée devient un client. */
     async factureEnvoyee(pennylaneId: number, numero: string) {
       const crm = await lire()

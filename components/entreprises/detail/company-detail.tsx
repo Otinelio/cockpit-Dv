@@ -50,6 +50,7 @@ import {
   Mail,
   Plus,
   Clock,
+  Trash2,
 } from "lucide-react";
 
 const ETAPE_OPTIONS = ETAPES.map((etape) => ({ value: etape, label: etape }));
@@ -111,6 +112,7 @@ export default function CompanyDetail() {
   const crm = useCockpit((state) => state.crm);
   const closeDetail = useCockpit((state) => state.closeDetail);
   const modifier = useCockpit((state) => state.modifierEntreprise);
+  const supprimer = useCockpit((state) => state.supprimerEntreprise);
   const toast = useCockpit((state) => state.toast);
 
   // Tâches et contrats
@@ -722,10 +724,23 @@ export default function CompanyDetail() {
             <PennylaneSection company={company} />
           </ScrollArea>
 
-          <SheetFooter className="border-t border-border bg-card/60 p-4">
-            <span className="caption-style text-subtle text-xs">
-              {company ? `Dans ton CRM depuis le ${new Date(`${company.creeLe}T12:00:00`).toLocaleDateString("fr-FR")}` : ""}
-            </span>
+          <SheetFooter className="border-t border-border bg-card/60 p-4 flex flex-row items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                if (confirm(`Supprimer définitivement "${company.nom}" du CRM ?`)) {
+                  const ok = await supprimer(company.id);
+                  if (ok) closeDetail();
+                }
+              }}
+              className="text-red-400 hover:text-red-300 hover:bg-red-500/10 gap-1.5 text-xs h-8"
+            >
+              <Trash2 className="size-3.5" />
+              Supprimer
+            </Button>
+
             <div className="flex items-center gap-2">
               <SheetClose asChild>
                 <Button variant="subtle" size="sm">

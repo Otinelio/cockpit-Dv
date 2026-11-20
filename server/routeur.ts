@@ -410,7 +410,7 @@ async function router(req: Request): Promise<Response> {
   }
 
   const fiche = chemin.match(/^\/api\/crm\/entreprises\/([a-z0-9-]+)$/)
-  if (methode === 'POST' && fiche) {
+  if ((methode === 'POST' || methode === 'PUT') && fiche) {
     const corps = await lireJson(req)
     const modif = await crm.modifier(fiche[1], corps)
     if (corps && typeof corps === 'object' && 'etape' in corps) {
@@ -423,6 +423,18 @@ async function router(req: Request): Promise<Response> {
       })
     }
     return json(200, modif)
+  }
+  if (methode === 'DELETE' && fiche) {
+    const id = fiche[1]
+    const ok = await crm.supprimer(id)
+    if (!ok) throw new ErreurHttp(404, 'Entreprise introuvable')
+    await magasinActivite.enregistrer({
+      auteur,
+      type: 'client',
+      titre: `Entreprise supprimée du CRM`,
+      cibleId: id,
+    })
+    return json(200, { ok: true })
   }
 
   // === FACTURES ===

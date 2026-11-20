@@ -90,6 +90,8 @@ export const api = {
     poster<Entreprise>("/api/crm/entreprises", e),
   modifierEntreprise: (id: string, e: ModifEntreprise) =>
     poster<Entreprise>(`/api/crm/entreprises/${id}`, e),
+  supprimerEntreprise: (id: string) =>
+    supprimer<{ ok: true }>(`/api/crm/entreprises/${id}`),
 
   // Factures
   creerBrouillon: (f: NouvelleFacture) => poster<{ id: number }>("/api/factures", f),

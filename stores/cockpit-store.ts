@@ -27,6 +27,7 @@ type CockpitState = {
   charger: (frais?: boolean) => Promise<void>;
   modifierEntreprise: (id: string, modif: ModifEntreprise) => Promise<void>;
   ajouterEntreprise: (modif: ModifEntreprise) => Promise<Entreprise | null>;
+  supprimerEntreprise: (id: string) => Promise<boolean>;
 
   // Authentification & Session DV
   utilisateurActif: string;
@@ -468,6 +469,35 @@ export const useCockpit = create<CockpitState>((set, get) => ({
         texte: (err as Error).message,
       });
       return null;
+    }
+  },
+
+  async supprimerEntreprise(id) {
+    try {
+      await api.supprimerEntreprise(id);
+      const crm = get().crm;
+      if (crm) {
+        set({
+          crm: {
+            ...crm,
+            entreprises: crm.entreprises.filter((e) => e.id !== id),
+          },
+        });
+      }
+      await get().chargerActivites();
+      get().toast({
+        ton: "succes",
+        titre: "Entreprise supprimée",
+        texte: "L'entreprise a bien été retirée de ton CRM.",
+      });
+      return true;
+    } catch (err) {
+      get().toast({
+        ton: "erreur",
+        titre: "Erreur de suppression",
+        texte: (err as Error).message,
+      });
+      return false;
     }
   },
 
