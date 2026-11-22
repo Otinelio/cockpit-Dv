@@ -77,6 +77,7 @@ type CockpitState = {
     id: string,
     facture: { libelle?: string; montantHT: number; tva?: CodeTva; echeanceJours?: number },
   ) => Promise<number | null>;
+  facturerJalon: (contratId: string, jalonId: string) => Promise<number | null>;
 
   // Suivi factures
   suivis: number[];
@@ -463,6 +464,26 @@ export const useCockpit = create<CockpitState>((set, get) => ({
       return res.id;
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur facturation", texte: (e as Error).message });
+      return null;
+    }
+  },
+
+  async facturerJalon(contratId, jalonId) {
+    try {
+      const res = await api.facturerJalon(contratId, jalonId);
+      get().toast({
+        ton: "succes",
+        titre: "Facture de jalon créée",
+        texte: `Brouillon de facture #${res.id} prêt à finaliser dans le module Finances.`,
+      });
+      await Promise.all([
+        get().chargerContrats(),
+        get().charger(true),
+        get().chargerActivites(),
+      ]);
+      return res.id;
+    } catch (e) {
+      get().toast({ ton: "erreur", titre: "Erreur facturation jalon", texte: (e as Error).message });
       return null;
     }
   },

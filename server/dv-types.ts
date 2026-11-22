@@ -61,6 +61,7 @@ export interface DepenseDV {
   categorie: CategorieDepenseDV
   payePar: string
   note?: string
+  contratId?: string
   creePar: string
   creeeLe: string
 }
@@ -112,13 +113,25 @@ export interface SaasDV {
 export type TypeContratDV = 'creation_site' | 'app_mobile' | 'logiciel' | 'maintenance' | 'conseil'
 export type StatutContratDV = 'brouillon' | 'en_attente' | 'actif' | 'termine' | 'resilie'
 
-export type ModeFacturationContrat = 'aucun' | 'integral' | 'acompte_50' | 'acompte_30' | 'sur_mesure'
+export type ModeFacturationContrat = 'aucun' | 'integral' | 'acompte_50' | 'acompte_30' | 'sur_mesure' | 'jalons'
+
+export interface JalonFacturationDV {
+  id: string
+  titre: string
+  pourcentage: number
+  montantFCFA: number
+  statut: 'en_attente' | 'pret' | 'facture' | 'paye'
+  factureId?: number
+  echeance?: string
+  tacheDeclencheurId?: string
+}
 
 export interface OptionsCreationContrat {
   genererTaches?: boolean
   modeFacturation?: ModeFacturationContrat
   pourcentageAcompte?: number
   montantAcompteFCFA?: number
+  jalons?: JalonFacturationDV[]
 }
 
 export interface PrestationContratDV {
@@ -149,6 +162,7 @@ export interface ContratDV {
   modalitesPaiement?: string
   factureIds?: number[]
   tacheIds?: string[]
+  jalonsFacturation?: JalonFacturationDV[]
   creeLe: string
   estSigne?: boolean
   estLivre?: boolean
@@ -161,5 +175,6 @@ export interface ContratDV {
   documentTailleOctets?: number
   documentUrl?: string
   tvaTaux?: number
+  jetonSignature?: string
 }
 

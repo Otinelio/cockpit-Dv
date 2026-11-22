@@ -104,6 +104,27 @@ export const api = {
     id: string,
     facture: { libelle?: string; montantHT: number; tva?: CodeTva; echeanceJours?: number },
   ) => poster<{ id: number }>(`/api/contrats/${id}/facturer`, facture),
+  facturerJalon: (contratId: string, jalonId: string) =>
+    poster<{ id: number; jalon: unknown }>(`/api/contrats/${contratId}/jalons/${jalonId}/facturer`),
+  margeContrat: (id: string) =>
+    appel<{
+      contratId: string;
+      montantTotalHT: number;
+      totalFactureTTC: number;
+      totalEncaisseTTC: number;
+      totalEncaisseHT: number;
+      totalDepenses: number;
+      depenses: DepenseDV[];
+      margeEstimeeFCFA: number;
+      margeReelleEncaisseeFCFA: number;
+      tauxMargePourcent: number;
+    }>(`/api/contrats/${id}/marge`),
+  obtenirContratPourSignature: (jeton: string) =>
+    appel<ContratDV>(`/api/contrats/signer/${jeton}`),
+  signerContratEnLigne: (
+    jeton: string,
+    donnee: { nomSignataire: string; fonctionSignataire?: string; signatureBase64?: string },
+  ) => poster<{ ok: boolean; contrat: ContratDV }>(`/api/contrats/signer/${jeton}`, donnee),
 
   // Hub DigitalVision (Espace Entreprise)
   hub: {

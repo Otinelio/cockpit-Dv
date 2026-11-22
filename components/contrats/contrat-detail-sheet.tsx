@@ -20,17 +20,23 @@ import { STATUTS as STATUTS_FACTURES } from "@/lib/factures";
 import type { ContratDV, StatutContratDV } from "@/server/dv-types";
 import {
   Building2,
+  Check,
+  CheckCircle2,
   Clock,
+  Copy,
   Download,
   Edit3,
   ExternalLink,
   FileCheck,
   FileText,
+  Layers,
   ListTodo,
   Paperclip,
   Plus,
   Receipt,
+  Send,
   Trash2,
+  TrendingUp,
   Wallet,
   X,
 } from "lucide-react";
@@ -72,6 +78,8 @@ function ContenuContratDetail({
   const crm = useCockpit((s) => s.crm);
   const tableau = useCockpit((s) => s.tableau);
   const taches = useCockpit((s) => s.taches);
+  const depenses = useCockpit((s) => s.depenses);
+  const facturerJalon = useCockpit((s) => s.facturerJalon);
   const modifierTache = useCockpit((s) => s.modifierTache);
   const supprimerContrat = useCockpit((s) => s.supprimerContrat);
   const openDetail = useCockpit((s) => s.openDetail);
@@ -81,6 +89,35 @@ function ContenuContratDetail({
   const [modalModifier, setModalModifier] = useState(false);
   const [modalPrestation, setModalPrestation] = useState(false);
   const [modalFacture, setModalFacture] = useState(false);
+  const [copieLienSignature, setCopieLienSignature] = useState(false);
+  const [chargementJalonId, setChargementJalonId] = useState<string | null>(null);
+
+  // Dépenses et rentabilité liée
+  const depensesContrat = (depenses ?? []).filter((d) => d.contratId === contrat.id);
+  const totalDepenses = depensesContrat.reduce((acc, d) => acc + d.montantFCFA, 0);
+  const margeEstimee = (contrat.montantFCFA || 0) - totalDepenses;
+  const tauxMarge = contrat.montantFCFA > 0 ? Math.round((margeEstimee / contrat.montantFCFA) * 100) : 0;
+
+  // Jalons de facturation
+  const jalons = contrat.jalonsFacturation ?? [];
+
+  const urlSignature =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/signer/${contrat.jetonSignature || contrat.id}`
+      : `/signer/${contrat.jetonSignature || contrat.id}`;
+
+  async function handleFacturerJalon(jalonId: string) {
+    setChargementJalonId(jalonId);
+    await facturerJalon(contrat.id, jalonId);
+    setChargementJalonId(null);
+  }
+
+  function copierSignature() {
+    navigator.clipboard.writeText(urlSignature);
+    setCopieLienSignature(true);
+    toast({ ton: "succes", titre: "Lien de signature copié", texte: "Prêt à envoyer au client." });
+    setTimeout(() => setCopieLienSignature(false), 2500);
+  }
 
   // Factures liées
   const facturesLiees = (tableau?.factures ?? []).filter(
@@ -214,6 +251,61 @@ function ContenuContratDetail({
 
           {/* 2. CORPS DÉFILANT */}
           <ScrollArea className="min-h-0 flex-1 p-5 space-y-6">
+            {/* BANDEAU SIGNATURE CLIENT EN LIGNE */}
+            <div
+              className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                contrat.estSigne
+                  ? "border-emerald-500/30 bg-emerald-500/10"
+                  : "border-primary/40 bg-primary/10"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`p-2 rounded-lg shrink-0 ${
+                    contrat.estSigne ? "bg-emerald-500/20 text-emerald-400" : "bg-primary/20 text-primary"
+                  }`}
+                >
+                  {contrat.estSigne ? <CheckCircle2 className="size-4" /> : <Send className="size-4" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-foreground">
+                      {contrat.estSigne ? "Convention signée en ligne" : "Lien de signature client en ligne"}
+                    </span>
+                    {contrat.estSigne && (
+                      <Tag tone="green" size="sm">Validé</Tag>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {contrat.estSigne
+                      ? `Signé le ${contrat.signeLe || contrat.debutLe} • Convention officielle active`
+                      : "Partage ce lien au client pour validation & signature tactile en ligne"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={copierSignature}
+                  className="h-7 px-2.5 text-xs gap-1.5 border-border"
+                >
+                  {copieLienSignature ? <Check className="size-3 text-trend" /> : <Copy className="size-3" />}
+                  {copieLienSignature ? "Copié !" : "Copier le lien"}
+                </Button>
+                <a
+                  href={`/signer/${contrat.jetonSignature || contrat.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary text-xs font-medium transition-colors"
+                >
+                  <ExternalLink className="size-3" />
+                  Ouvrir
+                </a>
+              </div>
+            </div>
+
             {/* Métriques Clés */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-xl border border-border bg-card/40 p-3.5 space-y-1">
@@ -261,6 +353,40 @@ function ContenuContratDetail({
                     style={{ width: `${progressionLivrables}%` }}
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Marge Nette & Rentabilité */}
+            <div className="p-3.5 rounded-xl border border-border bg-card/60 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 rounded-lg bg-trend/10 text-trend border border-trend/20 shrink-0">
+                  <TrendingUp className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-foreground block">
+                    Marge brute estimée du contrat
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Revenus ({euros(contrat.montantFCFA, true)}) - Dépenses imputées ({euros(totalDepenses, true)})
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-right shrink-0">
+                <span className="text-base font-bold text-trend font-mono block">
+                  {euros(margeEstimee, true)}
+                </span>
+                <span
+                  className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${
+                    tauxMarge >= 60
+                      ? "bg-emerald-500/20 text-emerald-400"
+                      : tauxMarge >= 30
+                        ? "bg-amber-500/20 text-amber-400"
+                        : "bg-rose-500/20 text-rose-400"
+                  }`}
+                >
+                  {tauxMarge}% de marge
+                </span>
               </div>
             </div>
 
@@ -379,6 +505,87 @@ function ContenuContratDetail({
                 </div>
               )}
             </div>
+
+            {/* SECTION JALONS : FACTURATION PAR JALONS / MILESTONES */}
+            {jalons.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Layers className="size-4 text-amber-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Jalons de Facturation Échelonnée ({jalons.length})
+                    </h3>
+                  </div>
+                  <span className="text-xs font-mono font-semibold text-muted-foreground">
+                    {jalons.filter((j) => j.statut === "facture" || j.statut === "paye").length} / {jalons.length} facturés
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {jalons.map((j, idx) => {
+                    const factureAssociee = facturesLiees.find((f) => f.id === j.factureId);
+                    const estFacture = Boolean(j.factureId || j.statut === "facture" || j.statut === "paye");
+
+                    return (
+                      <div
+                        key={j.id || idx}
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border transition-colors ${
+                          estFacture
+                            ? "border-amber-500/30 bg-amber-500/5"
+                            : "border-border bg-card/40"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="flex size-7 items-center justify-center rounded-lg bg-secondary text-xs font-bold text-foreground shrink-0">
+                            #{idx + 1}
+                          </span>
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-foreground">
+                                {j.titre}
+                              </span>
+                              <Tag tone={estFacture ? "green" : "neutral"} size="sm">
+                                {j.pourcentage}%
+                              </Tag>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground block">
+                              {estFacture
+                                ? `Facture #${factureAssociee?.numero || j.factureId || "émise"}`
+                                : "En attente de déclenchement"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                          <span className="font-mono font-bold text-xs text-trend">
+                            {euros(j.montantFCFA, true)} HT
+                          </span>
+
+                          {!estFacture ? (
+                            <Button
+                              type="button"
+                              variant="primary"
+                              size="sm"
+                              disabled={chargementJalonId === j.id}
+                              onClick={() => handleFacturerJalon(j.id)}
+                              className="h-7 px-2.5 text-xs font-semibold gap-1 bg-amber-600 hover:bg-amber-500 text-white"
+                            >
+                              <Receipt className="size-3" />
+                              {chargementJalonId === j.id ? "Création..." : "Facturer"}
+                            </Button>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-trend flex items-center gap-1">
+                              <CheckCircle2 className="size-3.5" />
+                              Facturé
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* SECTION B : FACTURES & RÈGLEMENTS */}
             <div className="space-y-3 pt-2">

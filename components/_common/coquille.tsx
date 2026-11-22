@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import Sidebar from "@/components/_common/sidebar/sidebar";
 import Toasts from "@/components/_common/toasts";
 import CommandMenu from "@/components/entreprises/command-menu/command-menu";
@@ -13,17 +14,22 @@ import MobileNav from "@/components/_common/mobile-nav";
 import { useCockpit } from "@/stores/cockpit-store";
 
 export default function Coquille({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const estPagePublique = pathname?.startsWith("/signer") || pathname?.startsWith("/payer");
+
   const charger = useCockpit((state) => state.charger);
   const estAuthentifie = useCockpit((state) => state.estAuthentifie);
   const chargementSession = useCockpit((state) => state.chargementSession);
   const initialiserSession = useCockpit((state) => state.initialiserSession);
 
   useEffect(() => {
-    initialiserSession();
-  }, [initialiserSession]);
+    if (!estPagePublique) {
+      initialiserSession();
+    }
+  }, [initialiserSession, estPagePublique]);
 
   useEffect(() => {
-    if (!estAuthentifie) return;
+    if (estPagePublique || !estAuthentifie) return;
     charger();
     let dernier = 0;
     const rafraichir = () => {
@@ -38,7 +44,16 @@ export default function Coquille({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", rafraichir);
       document.removeEventListener("visibilitychange", rafraichir);
     };
-  }, [charger, estAuthentifie]);
+  }, [charger, estAuthentifie, estPagePublique]);
+
+  if (estPagePublique) {
+    return (
+      <main className="min-h-dvh max-w-full bg-[#121212] text-foreground">
+        {children}
+        <Toasts />
+      </main>
+    );
+  }
 
   // En cours d'initialisation de la session locale
   if (chargementSession) {

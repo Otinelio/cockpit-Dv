@@ -144,11 +144,13 @@ export default function NouveauContratDialog({
         ? Math.round(montantTotalFCFA * 0.5)
         : modeFacturation === "acompte_30"
           ? Math.round(montantTotalFCFA * 0.3)
-          : modeFacturation === "sur_mesure"
-            ? typeof montantAcompteCustom === "number"
-              ? montantAcompteCustom
-              : 0
-            : 0;
+          : modeFacturation === "jalons"
+            ? Math.round(montantTotalFCFA * 0.4)
+            : modeFacturation === "sur_mesure"
+              ? typeof montantAcompteCustom === "number"
+                ? montantAcompteCustom
+                : 0
+              : 0;
 
   function ajouterPrestation() {
     setPrestations((actuelles) => [
@@ -648,6 +650,19 @@ export default function NouveauContratDialog({
                 >
                   <div className="font-bold text-foreground">Acompte sur mesure</div>
                   <div className="text-[10px] mt-0.5">Montant spécifique personnalisé</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setModeFacturation("jalons")}
+                  className={`p-2.5 rounded-lg border text-left text-xs transition-all sm:col-span-2 ${
+                    modeFacturation === "jalons"
+                      ? "border-primary bg-primary/10 text-primary font-semibold"
+                      : "border-border bg-card/40 text-muted-foreground hover:bg-card"
+                  }`}
+                >
+                  <div className="font-bold text-foreground">Échelonnée par Jalons (40% / 30% / 30%)</div>
+                  <div className="text-[10px] mt-0.5">Factures séquentielles : 40% lancement, 30% validation prototype, 30% solde livraison</div>
                 </button>
 
                 <button

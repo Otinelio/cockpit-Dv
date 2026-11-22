@@ -19,7 +19,7 @@ import { magasinDepenses } from './dv-depenses'
 import { magasinSaas } from './dv-saas'
 import { magasinContrats } from './dv-contrats'
 import { hubService } from './hub-service'
-import type { ActiviteDV, ContratDV, DepenseDV, ModeFacturationContrat, SaasDV, TacheDV } from './dv-types'
+import type { ActiviteDV, ContratDV, DepenseDV, JalonFacturationDV, ModeFacturationContrat, SaasDV, TacheDV } from './dv-types'
 import type { CategorieCoffre, IdentiteEntreprise, ReunionDV, VisionStrategique } from './hub-types'
 
 const TVA: CodeTva[] = ['FR_200', 'FR_100', 'FR_55', 'TG_180', 'exempt']
@@ -276,6 +276,7 @@ async function router(req: Request): Promise<Response> {
       categorie: b.categorie ?? 'tech',
       payePar: b.payePar ?? auteur,
       note: b.note ? String(b.note) : undefined,
+      contratId: b.contratId ? String(b.contratId) : undefined,
       creePar: auteur,
     })
     await magasinActivite.enregistrer({
@@ -369,6 +370,19 @@ async function router(req: Request): Promise<Response> {
     if (!b.titre || !b.nomEntreprise) throw new ErreurHttp(400, 'Titre et entreprise requis')
 
     const prestationsInitiales = Array.isArray(b.prestations) ? b.prestations : []
+    const totalContrat = Number(b.montantFCFA ?? 0)
+    let jalonsInitiaux: JalonFacturationDV[] | undefined = Array.isArray(b.jalonsFacturation) ? b.jalonsFacturation : undefined
+    if (!jalonsInitiaux && b.modeFacturation === 'jalons' && totalContrat > 0) {
+      const m1 = Math.round(totalContrat * 0.4)
+      const m2 = Math.round(totalContrat * 0.3)
+      const m3 = totalContrat - m1 - m2
+      jalonsInitiaux = [
+        { id: `jalon-${Date.now()}-1`, titre: 'Acompte au démarrage', pourcentage: 40, montantFCFA: m1, statut: 'pret' },
+        { id: `jalon-${Date.now()}-2`, titre: 'Validation prototype & démo', pourcentage: 30, montantFCFA: m2, statut: 'en_attente' },
+        { id: `jalon-${Date.now()}-3`, titre: 'Livraison finale & recette', pourcentage: 30, montantFCFA: m3, statut: 'en_attente' },
+      ]
+    }
+    const jetonSignature = b.jetonSignature || `sig_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 
     const contrat = await magasinContrats.ajouter({
       entrepriseId: String(b.entrepriseId ?? ''),
@@ -376,7 +390,7 @@ async function router(req: Request): Promise<Response> {
       titre: String(b.titre).trim(),
       type: b.type ?? 'creation_site',
       prestations: prestationsInitiales,
-      montantFCFA: Number(b.montantFCFA ?? 0),
+      montantFCFA: totalContrat,
       signeLe: b.signeLe ? String(b.signeLe) : undefined,
       debutLe: b.debutLe ?? new Date().toISOString().slice(0, 10),
       finLe: b.finLe ? String(b.finLe) : undefined,
@@ -390,6 +404,8 @@ async function router(req: Request): Promise<Response> {
       documentNom: b.documentNom ? String(b.documentNom) : undefined,
       documentUrl: b.documentUrl ? String(b.documentUrl) : undefined,
       documentTailleOctets: b.documentTailleOctets !== undefined ? Number(b.documentTailleOctets) : undefined,
+      jalonsFacturation: jalonsInitiaux,
+      jetonSignature,
       factureIds: [],
       tacheIds: [],
       estSigne: b.estSigne ?? false,
@@ -468,6 +484,9 @@ async function router(req: Request): Promise<Response> {
               : Math.round(contrat.montantFCFA * ((b.pourcentageAcompte || 50) / 100))
           const pct = Math.round((montantFactureHT / contrat.montantFCFA) * 100)
           libelleFacture = `${contrat.titre} — Acompte ${pct}%`
+        } else if (b.modeFacturation === 'jalons' && jalonsInitiaux && jalonsInitiaux.length > 0) {
+          montantFactureHT = jalonsInitiaux[0].montantFCFA
+          libelleFacture = `${contrat.titre} — ${jalonsInitiaux[0].titre}`
         }
 
         const codeTva: CodeTva = (b.tvaTaux === 0 || contrat.tvaTaux === 0) ? 'exempt' : 'TG_180'
@@ -480,6 +499,12 @@ async function router(req: Request): Promise<Response> {
           contratId: contrat.id,
         })
         factureIdsCreees.push(facture.id)
+
+        if (jalonsInitiaux && jalonsInitiaux.length > 0 && b.modeFacturation === 'jalons') {
+          jalonsInitiaux[0].statut = 'facture'
+          jalonsInitiaux[0].factureId = facture.id
+          await magasinContrats.modifier(contrat.id, { jalonsFacturation: jalonsInitiaux })
+        }
         e.cache = null
       }
     }
@@ -570,6 +595,159 @@ async function router(req: Request): Promise<Response> {
     })
 
     return json(201, { id: facture.id })
+  }
+
+  const routeFacturerJalon = chemin.match(/^\/api\/contrats\/([a-zA-Z0-9_-]+)\/jalons\/([a-zA-Z0-9_-]+)\/facturer$/)
+  if (routeFacturerJalon && methode === 'POST') {
+    const contratId = routeFacturerJalon[1]
+    const jalonId = routeFacturerJalon[2]
+    const contrat = await magasinContrats.obtenir(contratId)
+    if (!contrat) throw new ErreurHttp(404, 'Contrat introuvable')
+
+    const jalons = [...(contrat.jalonsFacturation ?? [])]
+    const idx = jalons.findIndex((j) => j.id === jalonId)
+    if (idx === -1) throw new ErreurHttp(404, 'Jalon de facturation introuvable')
+    const jalon = jalons[idx]
+
+    let carnet = await crm.idsLocaux()
+    let clientCrm = carnet.entreprises.find(
+      (c) => c.id === contrat.entrepriseId || c.nom.toLowerCase() === contrat.nomEntreprise.toLowerCase()
+    )
+    if (!clientCrm && contrat.nomEntreprise) {
+      clientCrm = await crm.ajouter({
+        nom: contrat.nomEntreprise,
+        etape: 'Client',
+        responsable: contrat.responsable,
+        pipeline: contrat.montantFCFA,
+        chances: 100,
+      })
+      carnet = await crm.idsLocaux()
+      clientCrm = carnet.entreprises.find((c) => c.id === clientCrm?.id) ?? clientCrm
+    }
+    if (!clientCrm?.pennylaneId) throw new ErreurHttp(422, 'Client CRM sans compte local')
+
+    const codeTva: CodeTva = contrat.tvaTaux === 0 ? 'exempt' : 'TG_180'
+    const libelle = `${contrat.titre} — ${jalon.titre}`
+    const facture = await source.creerBrouillon({
+      clientId: clientCrm.pennylaneId,
+      libelle,
+      montantHT: jalon.montantFCFA,
+      tva: codeTva,
+      echeanceJours: 15,
+      contratId: contrat.id,
+    })
+
+    jalons[idx] = { ...jalon, statut: 'facture', factureId: facture.id }
+    const existants = contrat.factureIds ?? []
+    await magasinContrats.modifier(contrat.id, {
+      jalonsFacturation: jalons,
+      factureIds: existants.includes(facture.id) ? existants : [...existants, facture.id],
+    })
+
+    e.cache = null
+    await magasinActivite.enregistrer({
+      auteur,
+      type: 'facture',
+      titre: `Facture émise pour le jalon : ${jalon.titre}`,
+      details: `${libelle} • ${jalon.montantFCFA.toLocaleString('fr-FR')} FCFA HT`,
+      cibleId: facture.id,
+    })
+
+    return json(201, { id: facture.id, jalon: jalons[idx] })
+  }
+
+  const routeMargeContrat = chemin.match(/^\/api\/contrats\/([a-zA-Z0-9_-]+)\/marge$/)
+  if (routeMargeContrat && methode === 'GET') {
+    const contratId = routeMargeContrat[1]
+    const contrat = await magasinContrats.obtenir(contratId)
+    if (!contrat) throw new ErreurHttp(404, 'Contrat introuvable')
+
+    const factures = await source.factures()
+    const facturesLiees = factures.filter((f) => f.contratId === contrat.id || (contrat.factureIds ?? []).includes(f.id))
+    const totalFactureTTC = facturesLiees.reduce((acc, f) => acc + Number(f.amount || 0), 0)
+    const totalEncaisseTTC = facturesLiees
+      .filter((f) => f.status === 'paid')
+      .reduce((acc, f) => acc + Number(f.amount || 0), 0)
+    const totalEncaisseHT = facturesLiees
+      .filter((f) => f.status === 'paid')
+      .reduce((acc, f) => acc + Number(f.currency_amount_before_tax || f.amount || 0), 0)
+
+    const toutesDepenses = await magasinDepenses.lister()
+    const depensesLiees = toutesDepenses.filter((d) => d.contratId === contrat.id)
+    const totalDepenses = depensesLiees.reduce((acc, d) => acc + d.montantFCFA, 0)
+
+    const montantTotalHT = contrat.montantFCFA || 0
+    const margeEstimeeFCFA = montantTotalHT - totalDepenses
+    const margeReelleEncaisseeFCFA = totalEncaisseHT - totalDepenses
+    const tauxMargePourcent = montantTotalHT > 0 ? Math.round((margeEstimeeFCFA / montantTotalHT) * 100) : 0
+
+    return json(200, {
+      contratId: contrat.id,
+      montantTotalHT,
+      totalFactureTTC,
+      totalEncaisseTTC,
+      totalEncaisseHT,
+      totalDepenses,
+      depenses: depensesLiees,
+      margeEstimeeFCFA,
+      margeReelleEncaisseeFCFA,
+      tauxMargePourcent,
+    })
+  }
+
+  const routeSignature = chemin.match(/^\/api\/contrats\/signer\/([a-zA-Z0-9_-]+)$/)
+  if (routeSignature) {
+    const jeton = routeSignature[1]
+    const tous = await magasinContrats.lister()
+    const contrat = tous.find((c) => c.jetonSignature === jeton || c.id === jeton)
+    if (!contrat) throw new ErreurHttp(404, 'Contrat ou lien de signature invalide')
+
+    if (methode === 'GET') {
+      return json(200, contrat)
+    }
+
+    if (methode === 'POST') {
+      const b = (await lireJson(req)) as {
+        nomSignataire: string
+        fonctionSignataire?: string
+        signatureBase64?: string
+      }
+      if (!b.nomSignataire?.trim()) throw new ErreurHttp(400, 'Nom du signataire requis')
+
+      const dateAujourdhui = new Date().toISOString().slice(0, 10)
+      const noteSignature = `\n[Signature en ligne] Validé par ${b.nomSignataire.trim()}${b.fonctionSignataire ? ` (${b.fonctionSignataire.trim()})` : ''} le ${new Date().toLocaleString('fr-FR')}`
+
+      const c = await magasinContrats.modifier(contrat.id, {
+        statut: 'actif',
+        estSigne: true,
+        signeLe: dateAujourdhui,
+        notes: (contrat.notes ? contrat.notes : '') + noteSignature,
+      })
+
+      // Passer le prospect en client dans le CRM
+      const carnet = await crm.lire()
+      const ent = carnet.entreprises.find(
+        (e) => e.id === contrat.entrepriseId || e.nom.toLowerCase() === contrat.nomEntreprise.toLowerCase()
+      )
+      if (ent && ent.etape !== 'Client') {
+        await crm.modifier(ent.id, {
+          etape: 'Client',
+          pipeline: Math.max(ent.pipeline, contrat.montantFCFA),
+          chances: 100,
+        })
+      }
+
+      await magasinActivite.enregistrer({
+        auteur: b.nomSignataire.trim(),
+        type: 'contrat',
+        titre: `Convention validée et signée en ligne`,
+        details: `${contrat.titre} — ${contrat.nomEntreprise} (Signé par ${b.nomSignataire.trim()})`,
+        cibleId: contrat.id,
+      })
+
+      e.cache = null
+      return json(200, { ok: true, contrat: c })
+    }
   }
 
   const routeContrat = chemin.match(/^\/api\/contrats\/([a-z0-9-]+)$/)
