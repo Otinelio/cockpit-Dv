@@ -9,7 +9,7 @@ import PageHeader from "@/components/_common/page-header";
 import NouveauSaasDialog from "@/components/saas/nouveau-saas-dialog";
 import NouveauContratDialog from "@/components/contrats/nouveau-contrat-dialog";
 import SaasDetailDialog from "@/components/saas/saas-detail-dialog";
-import ContratDetailDialog from "@/components/contrats/contrat-detail-dialog";
+import ContratDetailSheet from "@/components/contrats/contrat-detail-sheet";
 import { useCockpit } from "@/stores/cockpit-store";
 import { euros } from "@/lib/format";
 import type {
@@ -463,8 +463,8 @@ export default function SaasHub() {
         onOpenChange={(op) => !op && setSaasIdSelectionne(null)}
       />
 
-      {/* Fiche Détail Contrat avec validations */}
-      <ContratDetailDialog
+      {/* Fiche Détail Contrat en Sheet latéral */}
+      <ContratDetailSheet
         contrat={contratSelectionne}
         open={!!contratSelectionne}
         onOpenChange={(op) => !op && setContratIdSelectionne(null)}

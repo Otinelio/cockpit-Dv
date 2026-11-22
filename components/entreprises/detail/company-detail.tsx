@@ -31,7 +31,7 @@ import PipelineHealth from "./pipeline-health";
 import ActivityTrend from "./activity-trend";
 import PennylaneSection from "./pennylane-section";
 import NouveauContratDialog from "@/components/contrats/nouveau-contrat-dialog";
-import ContratDetailDialog from "@/components/contrats/contrat-detail-dialog";
+import ContratDetailSheet from "@/components/contrats/contrat-detail-sheet";
 import type { ContratDV } from "@/server/dv-types";
 import { etiquettes } from "@/lib/cockpit";
 import { aujourdhui, euros } from "@/lib/format";
@@ -768,7 +768,7 @@ export default function CompanyDetail() {
       />
 
       {/* Détail d'un contrat cliqué */}
-      <ContratDetailDialog
+      <ContratDetailSheet
         contrat={contratDetailSelect}
         open={contratDetailSelect !== null}
         onOpenChange={(open) => !open && setContratDetailSelect(null)}
