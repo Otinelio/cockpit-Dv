@@ -1,7 +1,7 @@
 // Script complet de vérification End-to-End des services Neon (PostgreSQL + Object Storage)
 // Exécution : node --env-file=.env.local scripts/test-e2e.mjs
 
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { neon } from '@neondatabase/serverless'
 
 async function run() {

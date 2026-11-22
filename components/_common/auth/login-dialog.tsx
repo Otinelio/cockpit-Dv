@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Avatar from "@/components/_ui/avatar";
 import Button from "@/components/_ui/button";
 import {
@@ -17,11 +17,12 @@ import { useCockpit } from "@/stores/cockpit-store";
 import { cn } from "@/lib/utils";
 import type { MembreDV } from "@/server/dv-types";
 import { api } from "@/lib/api";
+import { Sparkles } from "lucide-react";
 
 const EQUIPE: { nom: MembreDV; role: string; ton: "purple" | "blue" | "green" }[] = [
-  { nom: "Othnelio", role: "CTO • Lead Tech & SaaS", ton: "purple" },
-  { nom: "Medard", role: "CMO • Marketing & Ventes", ton: "blue" },
-  { nom: "Roméo", role: "COO • Opérations & Suivi", ton: "green" },
+  { nom: "Othnelio", role: "CTO • Lead Tech & Stratégie", ton: "purple" },
+  { nom: "Medard", role: "CMO • Produit & Marketing", ton: "blue" },
+  { nom: "Roméo", role: "COO • Commercial & Opérations", ton: "green" },
 ];
 
 export default function LoginDialog() {
@@ -29,26 +30,54 @@ export default function LoginDialog() {
   const setOuvert = useCockpit((s) => s.setDialogueConnexionOuvert);
   const utilisateurActif = useCockpit((s) => s.utilisateurActif);
   const connecter = useCockpit((s) => s.connecter);
+  const definirPremierMotDePasse = useCockpit((s) => s.definirPremierMotDePasse);
   const toast = useCockpit((s) => s.toast);
 
   const [selection, setSelection] = useState<MembreDV>(
     (EQUIPE.some((m) => m.nom === utilisateurActif) ? utilisateurActif : "Othnelio") as MembreDV,
   );
+  const [statuts, setStatuts] = useState<Record<string, { motDePasseDefini: boolean }>>({});
   const [motDePasse, setMotDePasse] = useState("");
+  const [confirmMdp, setConfirmMdp] = useState("");
   const [chargement, setChargement] = useState(false);
   const [modeChangement, setModeChangement] = useState(false);
 
   const [ancienMdp, setAncienMdp] = useState("");
   const [nouveauMdp, setNouveauMdp] = useState("");
 
+  useEffect(() => {
+    if (ouvert) {
+      api.statutAuth().then(setStatuts).catch(console.error);
+    }
+  }, [ouvert]);
+
+  const estPremierAcces = statuts[selection]?.motDePasseDefini === false;
+
   async function handleConnexion(e: React.FormEvent) {
     e.preventDefault();
     if (!motDePasse) return;
     setChargement(true);
-    const succes = await connecter(selection, motDePasse);
-    setChargement(false);
-    if (succes) {
-      setMotDePasse("");
+
+    if (estPremierAcces) {
+      if (motDePasse !== confirmMdp) {
+        toast({ ton: "erreur", titre: "Erreur", texte: "Les mots de passe ne correspondent pas." });
+        setChargement(false);
+        return;
+      }
+      const ok = await definirPremierMotDePasse(selection, motDePasse);
+      setChargement(false);
+      if (ok) {
+        setMotDePasse("");
+        setConfirmMdp("");
+        setOuvert(false);
+      }
+    } else {
+      const succes = await connecter(selection, motDePasse);
+      setChargement(false);
+      if (succes) {
+        setMotDePasse("");
+        setOuvert(false);
+      }
     }
   }
 
@@ -86,27 +115,33 @@ export default function LoginDialog() {
             <span className="bg-primary/20 text-primary flex size-7 items-center justify-center rounded-lg text-xs font-semibold">
               DV
             </span>
-            <DialogTitle>Cockpit DigitalVision</DialogTitle>
+            <DialogTitle>Changer d&apos;utilisateur</DialogTitle>
           </div>
           <DialogDescription>
             {modeChangement
               ? `Changement de mot de passe pour ${selection}`
-              : "Sélectionne ton profil et saisis ton mot de passe pour tracer tes actions."}
+              : estPremierAcces
+                ? `Première connexion : Définis le mot de passe de ${selection}`
+                : `Connecte-toi en tant que ${selection}`}
           </DialogDescription>
         </DialogHeader>
 
         {!modeChangement ? (
           <form onSubmit={handleConnexion} className="flex flex-col gap-5 p-6">
             <div className="flex flex-col gap-2">
-              <label className="caption-style text-muted-foreground">Qui es-tu ?</label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <label className="caption-style text-muted-foreground">Sélectionne un profil</label>
+              <div className="grid grid-cols-3 gap-2">
                 {EQUIPE.map((m) => {
                   const actif = selection === m.nom;
                   return (
                     <button
                       key={m.nom}
                       type="button"
-                      onClick={() => setSelection(m.nom)}
+                      onClick={() => {
+                        setSelection(m.nom);
+                        setMotDePasse("");
+                        setConfirmMdp("");
+                      }}
                       className={cn(
                         "flex flex-col items-center gap-2 rounded-xl border p-3 text-center transition-all",
                         actif
@@ -127,10 +162,17 @@ export default function LoginDialog() {
               </div>
             </div>
 
+            {estPremierAcces && (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-400 flex items-center gap-2">
+                <Sparkles className="size-4 shrink-0" />
+                <span>Première connexion pour {selection} : Définis ton mot de passe.</span>
+              </div>
+            )}
+
             <Field
-              label="Mot de passe"
+              label={estPremierAcces ? "Nouveau mot de passe" : "Mot de passe"}
               htmlFor="dv-password"
-              hint="Mot de passe initial : dv2026"
+              hint={estPremierAcces ? "4 caractères minimum" : undefined}
             >
               <Input
                 id="dv-password"
@@ -143,15 +185,30 @@ export default function LoginDialog() {
               />
             </Field>
 
-            <div className="flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={() => setModeChangement(true)}
-                className="text-primary hover:underline"
-              >
-                Changer de mot de passe
-              </button>
-            </div>
+            {estPremierAcces && (
+              <Field label="Confirmer le mot de passe" htmlFor="dv-password-confirm">
+                <Input
+                  id="dv-password-confirm"
+                  type="password"
+                  placeholder="Retape ton mot de passe"
+                  value={confirmMdp}
+                  onChange={(e) => setConfirmMdp(e.target.value)}
+                  required
+                />
+              </Field>
+            )}
+
+            {!estPremierAcces && (
+              <div className="flex items-center justify-between text-xs">
+                <button
+                  type="button"
+                  onClick={() => setModeChangement(true)}
+                  className="text-primary hover:underline"
+                >
+                  Changer de mot de passe
+                </button>
+              </div>
+            )}
 
             <DialogFooter className="mt-2 border-t border-border pt-4">
               <Button
@@ -164,9 +221,13 @@ export default function LoginDialog() {
               <Button
                 variant="primary"
                 type="submit"
-                disabled={!motDePasse || chargement}
+                disabled={!motDePasse || (estPremierAcces && !confirmMdp) || chargement}
               >
-                {chargement ? "Connexion..." : "Se connecter"}
+                {chargement
+                  ? "Validation..."
+                  : estPremierAcces
+                    ? "Enregistrer & Entrer"
+                    : "Se connecter"}
               </Button>
             </DialogFooter>
           </form>
@@ -220,4 +281,3 @@ export default function LoginDialog() {
     </Dialog>
   );
 }
-

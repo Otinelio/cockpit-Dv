@@ -61,8 +61,11 @@ export type ModifEntreprise = Partial<
 
 export const api = {
   // Auth
+  statutAuth: () => appel<Record<string, { motDePasseDefini: boolean }>>("/api/auth/statut"),
   connexion: (nom: string, motDePasse: string) =>
     poster<{ ok: boolean; nom: string }>("/api/auth/connexion", { nom, motDePasse }),
+  premierMotDePasse: (nom: string, motDePasse: string) =>
+    poster<{ ok: boolean; nom: string }>("/api/auth/premier-mot-de-passe", { nom, motDePasse }),
   changerMotDePasse: (nom: string, ancien: string, nouveau: string) =>
     poster<{ ok: boolean }>("/api/auth/changer-mot-de-passe", { nom, ancien, nouveau }),
 

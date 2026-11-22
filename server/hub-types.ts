@@ -132,6 +132,8 @@ export interface AssocieDV {
   email: string
   telephone: string
   adresse?: string
+  pourcentageCapital?: number
+  partsSociales?: number
   responsabilites: string[]
   competences: string[]
   objectifsIndividuels: string[]

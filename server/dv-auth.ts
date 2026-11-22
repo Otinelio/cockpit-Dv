@@ -5,19 +5,19 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { lireCollection, ecrireCollection } from './db'
 import type { MembreDV } from './dv-types'
 
-interface UtilisateurStocke {
+export interface UtilisateurStocke {
   nom: MembreDV
   sel: string
   hachage: string
+  motDePasseDefini: boolean
   modifieLe: string
 }
 
-interface FichierAuth {
+export interface FichierAuth {
   utilisateurs: Record<string, UtilisateurStocke>
 }
 
-const MEMBRES_DEFAUT: MembreDV[] = ['Othnelio', 'Medard', 'Roméo']
-const MOT_DE_PASSE_DEFAUT = 'digitalvision'
+export const MEMBRES_DEFAUT: MembreDV[] = ['Othnelio', 'Medard', 'Roméo']
 
 function hacher(mdp: string, sel: string): string {
   return scryptSync(mdp, sel, 64).toString('hex')
@@ -30,7 +30,8 @@ function authInitiale(): FichierAuth {
     initial.utilisateurs[nom] = {
       nom,
       sel,
-      hachage: hacher(MOT_DE_PASSE_DEFAUT, sel),
+      hachage: '',
+      motDePasseDefini: false, // Doit être défini à la 1re connexion
       modifieLe: new Date().toISOString(),
     }
   }
@@ -42,7 +43,20 @@ export class MagasinAuth {
 
   private async lire(): Promise<FichierAuth> {
     if (this.memoire) return this.memoire
-    this.memoire = await lireCollection<FichierAuth>('auth', authInitiale())
+    const donnees = await lireCollection<FichierAuth>('auth', authInitiale())
+    // S'assurer que les 3 membres existent
+    for (const nom of MEMBRES_DEFAUT) {
+      if (!donnees.utilisateurs[nom]) {
+        donnees.utilisateurs[nom] = {
+          nom,
+          sel: randomBytes(16).toString('hex'),
+          hachage: '',
+          motDePasseDefini: false,
+          modifieLe: new Date().toISOString(),
+        }
+      }
+    }
+    this.memoire = donnees
     return this.memoire
   }
 
@@ -51,29 +65,58 @@ export class MagasinAuth {
     await ecrireCollection<FichierAuth>('auth', donnees)
   }
 
-  async verifier(nom: string, mdp: string): Promise<boolean> {
+  /**
+   * Retourne pour chaque membre si son mot de passe initial a déjà été défini.
+   */
+  async obtenirStatuts(): Promise<Record<string, { motDePasseDefini: boolean }>> {
+    const f = await this.lire()
+    const statuts: Record<string, { motDePasseDefini: boolean }> = {}
+    for (const nom of MEMBRES_DEFAUT) {
+      const u = f.utilisateurs[nom]
+      statuts[nom] = {
+        motDePasseDefini: Boolean(u && u.motDePasseDefini && u.hachage),
+      }
+    }
+    return statuts
+  }
+
+  /**
+   * Définit le premier mot de passe choisi par l'utilisateur lors de sa première connexion.
+   */
+  async definirPremierMotDePasse(nom: string, motDePasse: string): Promise<boolean> {
     const f = await this.lire()
     const u = f.utilisateurs[nom]
     if (!u) return false
+    const sel = randomBytes(16).toString('hex')
+    f.utilisateurs[nom] = {
+      nom: nom as MembreDV,
+      sel,
+      hachage: hacher(motDePasse, sel),
+      motDePasseDefini: true,
+      modifieLe: new Date().toISOString(),
+    }
+    await this.sauvegarder(f)
+    return true
+  }
+
+  /**
+   * Vérifie le mot de passe d'un utilisateur.
+   */
+  async verifier(nom: string, mdp: string): Promise<boolean> {
+    const f = await this.lire()
+    const u = f.utilisateurs[nom]
+    if (!u || !u.motDePasseDefini || !u.hachage) return false
     const h = Buffer.from(hacher(mdp, u.sel), 'hex')
     const stocke = Buffer.from(u.hachage, 'hex')
     if (h.length === stocke.length && timingSafeEqual(h, stocke)) {
       return true
     }
-    if (mdp === MOT_DE_PASSE_DEFAUT) {
-      const sel = randomBytes(16).toString('hex')
-      f.utilisateurs[nom] = {
-        nom: nom as MembreDV,
-        sel,
-        hachage: hacher(MOT_DE_PASSE_DEFAUT, sel),
-        modifieLe: new Date().toISOString(),
-      }
-      await this.sauvegarder(f)
-      return true
-    }
     return false
   }
 
+  /**
+   * Change le mot de passe d'un utilisateur connaissant l'ancien.
+   */
   async changerMotDePasse(nom: string, ancienMdp: string, nouveauMdp: string): Promise<boolean> {
     const ok = await this.verifier(nom, ancienMdp)
     if (!ok) return false
@@ -83,10 +126,19 @@ export class MagasinAuth {
       nom: nom as MembreDV,
       sel,
       hachage: hacher(nouveauMdp, sel),
+      motDePasseDefini: true,
       modifieLe: new Date().toISOString(),
     }
     await this.sauvegarder(f)
     return true
+  }
+
+  /**
+   * Réinitialise les mots de passe pour forcer le choix initial à la prochaine visite.
+   */
+  async forcerPremierChoixTous(): Promise<void> {
+    const initial = authInitiale()
+    await this.sauvegarder(initial)
   }
 }
 

@@ -142,6 +142,26 @@ async function router(req: Request): Promise<Response> {
   }
 
   // === AUTHENTIFICATION ===
+  if (methode === 'GET' && chemin === '/api/auth/statut') {
+    const statuts = await magasinAuth.obtenirStatuts()
+    return json(200, statuts)
+  }
+
+  if (methode === 'POST' && chemin === '/api/auth/premier-mot-de-passe') {
+    const b = (await lireJson(req)) as { nom?: string; motDePasse?: string }
+    if (!b.nom || !b.motDePasse) throw new ErreurHttp(400, 'Nom et mot de passe requis')
+    if (b.motDePasse.length < 4) throw new ErreurHttp(400, 'Le mot de passe doit comporter au moins 4 caractères')
+    const ok = await magasinAuth.definirPremierMotDePasse(b.nom, b.motDePasse)
+    if (!ok) throw new ErreurHttp(400, `Impossible de configurer le mot de passe pour ${b.nom}`)
+    await magasinActivite.enregistrer({
+      auteur: b.nom,
+      type: 'connexion',
+      titre: `${b.nom} a défini son mot de passe initial`,
+      details: 'Première connexion réussie à Cockpit DV',
+    })
+    return json(200, { ok: true, nom: b.nom })
+  }
+
   if (methode === 'POST' && chemin === '/api/auth/connexion') {
     const b = (await lireJson(req)) as { nom?: string; motDePasse?: string }
     if (!b.nom || !b.motDePasse) throw new ErreurHttp(400, 'Nom et mot de passe requis')

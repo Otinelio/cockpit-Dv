@@ -38,6 +38,7 @@ type CockpitState = {
   dialogueConnexionOuvert: boolean;
   setDialogueConnexionOuvert: (open: boolean) => void;
   connecter: (nom: string, motDePasse: string) => Promise<boolean>;
+  definirPremierMotDePasse: (nom: string, motDePasse: string) => Promise<boolean>;
   deconnecter: () => void;
 
   // Activités & Audit Trail
@@ -123,12 +124,16 @@ type CockpitState = {
 };
 
 let prochainToast = 1;
+const CLE_SESSION_VERSION = "cockpit_dv_session_v4";
 
 function initialUser(): string {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("cockpit_dv_user") || "Othnelio";
+    if (localStorage.getItem("cockpit_dv_session_version") !== CLE_SESSION_VERSION) {
+      return "";
+    }
+    return localStorage.getItem("cockpit_dv_user") || "";
   }
-  return "Othnelio";
+  return "";
 }
 
 export const useCockpit = create<CockpitState>((set, get) => ({
@@ -141,9 +146,17 @@ export const useCockpit = create<CockpitState>((set, get) => ({
   chargementSession: true,
   initialiserSession() {
     if (typeof window !== "undefined") {
+      const version = localStorage.getItem("cockpit_dv_session_version");
+      if (version !== CLE_SESSION_VERSION) {
+        localStorage.removeItem("cockpit_dv_session");
+        localStorage.removeItem("cockpit_dv_user");
+        localStorage.setItem("cockpit_dv_session_version", CLE_SESSION_VERSION);
+        set({ estAuthentifie: false, utilisateurActif: "", chargementSession: false });
+        return;
+      }
       const active = localStorage.getItem("cockpit_dv_session") === "true";
-      const user = localStorage.getItem("cockpit_dv_user") || "Othnelio";
-      set({ estAuthentifie: active, utilisateurActif: user, chargementSession: false });
+      const user = localStorage.getItem("cockpit_dv_user") || "";
+      set({ estAuthentifie: active && Boolean(user), utilisateurActif: active ? user : "", chargementSession: false });
     } else {
       set({ chargementSession: false });
     }
@@ -156,6 +169,7 @@ export const useCockpit = create<CockpitState>((set, get) => ({
       const res = await api.connexion(nom, motDePasse);
       if (res.ok) {
         if (typeof window !== "undefined") {
+          localStorage.setItem("cockpit_dv_session_version", CLE_SESSION_VERSION);
           localStorage.setItem("cockpit_dv_session", "true");
           localStorage.setItem("cockpit_dv_user", nom);
         }
@@ -179,11 +193,41 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     }
   },
 
+  async definirPremierMotDePasse(nom, motDePasse) {
+    try {
+      const res = await api.premierMotDePasse(nom, motDePasse);
+      if (res.ok) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("cockpit_dv_session_version", CLE_SESSION_VERSION);
+          localStorage.setItem("cockpit_dv_session", "true");
+          localStorage.setItem("cockpit_dv_user", nom);
+        }
+        set({ estAuthentifie: true, utilisateurActif: nom, dialogueConnexionOuvert: false });
+        get().toast({
+          ton: "succes",
+          titre: `Bienvenue ${nom} !`,
+          texte: "Ton mot de passe personnel a été enregistré avec succès.",
+        });
+        await get().chargerActivites();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      get().toast({
+        ton: "erreur",
+        titre: "Erreur",
+        texte: (err as Error).message,
+      });
+      return false;
+    }
+  },
+
   deconnecter() {
     if (typeof window !== "undefined") {
       localStorage.removeItem("cockpit_dv_session");
+      localStorage.removeItem("cockpit_dv_user");
     }
-    set({ estAuthentifie: false, dialogueConnexionOuvert: false });
+    set({ estAuthentifie: false, utilisateurActif: "", dialogueConnexionOuvert: false });
     get().toast({
       ton: "info",
       titre: "Session verrouillée",
