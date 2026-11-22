@@ -18,6 +18,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/_ui/sheet";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/_ui/dialog";
 import FilterMenu from "@/components/_common/filter-menu";
 import {
   Select,
@@ -53,6 +62,11 @@ import {
   Plus,
   Clock,
   Trash2,
+  Receipt,
+  FileText,
+  CheckSquare,
+  Edit3,
+  Save,
 } from "lucide-react";
 
 const ETAPE_OPTIONS = ETAPES.map((etape) => ({ value: etape, label: etape }));
@@ -115,6 +129,7 @@ export default function CompanyDetail() {
   const closeDetail = useCockpit((state) => state.closeDetail);
   const modifier = useCockpit((state) => state.modifierEntreprise);
   const supprimer = useCockpit((state) => state.supprimerEntreprise);
+  const ouvrirFacture = useCockpit((state) => state.ouvrirFacture);
   const toast = useCockpit((state) => state.toast);
 
   // Tâches et contrats
@@ -127,6 +142,7 @@ export default function CompanyDetail() {
   const chargerContrats = useCockpit((state) => state.chargerContrats);
 
   const [modalContratClient, setModalContratClient] = useState(false);
+  const [modalEdition, setModalEdition] = useState(false);
   const [contratDetailSelect, setContratDetailSelect] = useState<ContratDV | null>(null);
   const [formTacheOuvert, setFormTacheOuvert] = useState(false);
   const [titreTacheClient, setTitreTacheClient] = useState("");
@@ -272,8 +288,37 @@ export default function CompanyDetail() {
             </SheetDescription>
           </SheetHeader>
 
+          {/* BANDEAU MODIFICATIONS NON ENREGISTRÉES */}
+          {modifie && (
+            <div className="flex items-center justify-between gap-2 bg-purple-500/15 border-b border-purple-500/30 px-5 py-2.5 text-xs">
+              <div className="flex items-center gap-1.5 text-purple-300 font-medium">
+                <span className="size-2 rounded-full bg-purple-400 animate-pulse" />
+                Modifications en attente
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setBrouillon(brouillonDe(company))}
+                  className="h-7 text-xs text-subtle hover:text-foreground"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={enregistrer}
+                  className="h-7 text-xs bg-purple-600 hover:bg-purple-500 text-white gap-1 font-semibold"
+                >
+                  <Save className="size-3" />
+                  Enregistrer
+                </Button>
+              </div>
+            </div>
+          )}
+
           <ScrollArea className="min-h-0 flex-1">
-            {/* 1. EN-TÊTE ÉDITABLE NOM DE L'ENTREPRISE */}
+            {/* 1. EN-TÊTE DU PROFIL CLIENT */}
             <div className="flex flex-col gap-3 p-5 shadow-[inset_0_-1px_0_var(--line-strong)] bg-card">
               <div className="flex items-start gap-3">
                 <span className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-xl shadow-xs border border-border">
@@ -283,12 +328,23 @@ export default function CompanyDetail() {
                 </span>
 
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <Input
-                    value={brouillon.nom}
-                    onChange={(e) => maj("nom", e.target.value)}
-                    placeholder="Nom de l'entreprise"
-                    className="h-8 text-base font-bold text-foreground border-border bg-secondary/40"
-                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <Input
+                      value={brouillon.nom}
+                      onChange={(e) => maj("nom", e.target.value)}
+                      placeholder="Nom de l'entreprise"
+                      className="h-8 text-base font-bold text-foreground border-border bg-secondary/40"
+                    />
+                    <Button
+                      variant="subtle"
+                      size="sm"
+                      onClick={() => setModalEdition(true)}
+                      className="h-8 shrink-0 gap-1.5 text-xs border border-border bg-secondary/50 hover:bg-secondary font-medium"
+                    >
+                      <Edit3 className="size-3.5 text-purple-400" />
+                      Modifier la fiche
+                    </Button>
+                  </div>
                   <div className="flex flex-wrap items-center gap-1.5 mt-1">
                     {etiquettes({ ...company, segment: brouillon.segment, etape: brouillon.etape }).map((tag) => (
                       <Tag key={tag.libelle} tone={tag.ton} size="sm">
@@ -299,49 +355,74 @@ export default function CompanyDetail() {
                 </div>
               </div>
 
-              {/* 2. BOUTONS D'ACTION DIRECTE (WHATSAPP, APPELER, EMAIL, NOUVEAU CONTRAT) */}
-              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/60">
-                {lienWa ? (
-                  <a
-                    href={lienWa}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors"
+              {/* 2. BARRE D'ACTIONS RAPIDES REGROUPÉES EN HAUT */}
+              <div className="flex flex-col gap-2 pt-3 border-t border-border/60">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-subtle">
+                  Actions rapides
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => ouvrirFacture(company.pennylaneId ?? null)}
+                    className="gap-1.5 text-xs font-semibold"
                   >
-                    <MessageCircle className="size-3.5" />
-                    WhatsApp
-                  </a>
-                ) : null}
+                    <Receipt className="size-3.5" />
+                    Créer une facture
+                  </Button>
 
-                {telephone ? (
-                  <a
-                    href={`tel:${telephone.replace(/\s+/g, "")}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors"
+                  <Button
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => setModalContratClient(true)}
+                    className="gap-1.5 text-xs font-medium border border-border bg-secondary/50 hover:bg-secondary"
                   >
-                    <PhoneCall className="size-3.5" />
-                    Appeler
-                  </a>
-                ) : null}
+                    <FileText className="size-3.5 text-purple-400" />
+                    Nouveau contrat
+                  </Button>
 
-                {email ? (
-                  <a
-                    href={`mailto:${email}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-secondary hover:bg-secondary/80 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors"
+                  <Button
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => setFormTacheOuvert(true)}
+                    className="gap-1.5 text-xs font-medium border border-border bg-secondary/50 hover:bg-secondary"
                   >
-                    <Mail className="size-3.5" />
-                    E-mail
-                  </a>
-                ) : null}
+                    <CheckSquare className="size-3.5 text-blue-400" />
+                    Ajouter une tâche
+                  </Button>
 
-                <Button
-                  variant="subtle"
-                  size="sm"
-                  onClick={() => setModalContratClient(true)}
-                  className="gap-1 text-xs ml-auto border border-border bg-secondary/50"
-                >
-                  <Plus className="size-3" />
-                  Nouveau contrat
-                </Button>
+                  {lienWa && (
+                    <a
+                      href={lienWa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors"
+                    >
+                      <MessageCircle className="size-3.5" />
+                      WhatsApp
+                    </a>
+                  )}
+
+                  {telephone && (
+                    <a
+                      href={`tel:${telephone.replace(/\s+/g, "")}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors"
+                    >
+                      <PhoneCall className="size-3.5" />
+                      Appeler
+                    </a>
+                  )}
+
+                  {email && (
+                    <a
+                      href={`mailto:${email}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-secondary hover:bg-secondary/80 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors"
+                    >
+                      <Mail className="size-3.5" />
+                      E-mail
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -773,6 +854,204 @@ export default function CompanyDetail() {
         open={contratDetailSelect !== null}
         onOpenChange={(open) => !open && setContratDetailSelect(null)}
       />
+
+      {/* MODALE DÉDIÉE : MODIFIER LA FICHE DU CLIENT / ENTREPRISE */}
+      <Dialog open={modalEdition} onOpenChange={setModalEdition}>
+        <DialogContent className="max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Modifier la fiche de {company.nom}</DialogTitle>
+            <DialogDescription>
+              Mets à jour les coordonnées, le responsable et l&apos;état commercial du client.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex max-h-[75dvh] flex-col gap-4 overflow-y-auto pr-1">
+            <Field label="Nom de l'entreprise" htmlFor="edit-nom" required>
+              <Input
+                id="edit-nom"
+                value={brouillon.nom}
+                onChange={(e) => maj("nom", e.target.value)}
+                placeholder="Nom commercial"
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Segment d'activité" htmlFor="edit-segment">
+                <Select value={brouillon.segment} onValueChange={(v) => maj("segment", v as Segment)}>
+                  <SelectTrigger id="edit-segment">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SEGMENTS.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              <Field label="Étape du CRM" htmlFor="edit-etape">
+                <Select value={brouillon.etape} onValueChange={(v) => maj("etape", v as Etape)}>
+                  <SelectTrigger id="edit-etape">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ETAPES.map((e) => (
+                      <SelectItem key={e} value={e}>
+                        {e}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Responsable du compte" htmlFor="edit-responsable">
+                <Select
+                  value={brouillon.responsable || company.responsable}
+                  onValueChange={(v) => maj("responsable", v)}
+                >
+                  <SelectTrigger id="edit-responsable">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(crm?.equipe ?? []).map((m) => (
+                      <SelectItem key={m.nom} value={m.nom}>
+                        <span className="flex items-center gap-2">
+                          <Avatar nom={m.nom} ton={m.ton} />
+                          {m.nom}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              <Field label="Ville / Localisation" htmlFor="edit-ville">
+                <Input
+                  id="edit-ville"
+                  value={brouillon.ville}
+                  onChange={(e) => maj("ville", e.target.value)}
+                  placeholder="Lomé"
+                />
+              </Field>
+            </div>
+
+            <div className="border-t border-border/60 pt-3 flex flex-col gap-3">
+              <span className="text-xs font-semibold text-foreground">Contact direct</span>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Nom du contact" htmlFor="edit-contact-nom">
+                  <Input
+                    id="edit-contact-nom"
+                    value={brouillon.contactNom}
+                    onChange={(e) => maj("contactNom", e.target.value)}
+                    placeholder="Prénom Nom"
+                  />
+                </Field>
+                <Field label="Téléphone" htmlFor="edit-contact-tel">
+                  <Input
+                    id="edit-contact-tel"
+                    type="tel"
+                    value={brouillon.contactTelephone}
+                    onChange={(e) => maj("contactTelephone", e.target.value)}
+                    placeholder="+228 90 00 00 00"
+                    className="tabular-nums"
+                  />
+                </Field>
+              </div>
+              <Field label="Adresse e-mail" htmlFor="edit-contact-email">
+                <Input
+                  id="edit-contact-email"
+                  type="email"
+                  value={brouillon.contactEmail}
+                  onChange={(e) => maj("contactEmail", e.target.value)}
+                  placeholder="contact@client.com"
+                />
+              </Field>
+            </div>
+
+            <div className="border-t border-border/60 pt-3 flex flex-col gap-3">
+              <span className="text-xs font-semibold text-foreground">Opportunité commerciale</span>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Montant espéré (FCFA)" htmlFor="edit-pipeline">
+                  <Input
+                    id="edit-pipeline"
+                    type="number"
+                    min={0}
+                    step={100}
+                    value={brouillon.pipeline}
+                    onChange={(e) => maj("pipeline", Math.max(0, Math.round(Number(e.target.value) || 0)))}
+                    className="tabular-nums"
+                  />
+                </Field>
+                <Field label="Affaires en cours" htmlFor="edit-affaires">
+                  <Input
+                    id="edit-affaires"
+                    type="number"
+                    min={0}
+                    value={brouillon.affaires}
+                    onChange={(e) => maj("affaires", Math.max(0, Math.round(Number(e.target.value) || 0)))}
+                    className="tabular-nums"
+                  />
+                </Field>
+                <Field label="Chances de signer (%)" htmlFor="edit-chances">
+                  <Input
+                    id="edit-chances"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={brouillon.chances}
+                    onChange={(e) => maj("chances", Math.min(100, Math.max(0, Math.round(Number(e.target.value) || 0))))}
+                    className="tabular-nums"
+                  />
+                </Field>
+              </div>
+            </div>
+
+            <div className="border-t border-border/60 pt-3 flex flex-col gap-3">
+              <Field label="Prochaine action (Ce qu'il reste à faire)" htmlFor="edit-suite">
+                <Input
+                  id="edit-suite"
+                  value={brouillon.suite}
+                  maxLength={100}
+                  onChange={(e) => maj("suite", e.target.value)}
+                  placeholder="Ex : Rappeler lundi pour valider la proposition"
+                />
+              </Field>
+              <Field label="Notes internes sur ce client" htmlFor="edit-notes">
+                <textarea
+                  id="edit-notes"
+                  value={brouillon.notes}
+                  rows={3}
+                  onChange={(e) => maj("notes", e.target.value)}
+                  placeholder="Besoins du client, budget discuté, historique..."
+                  className="border-line-strong bg-secondary text-foreground placeholder:text-subtle focus-visible:border-ring min-h-[70px] w-full resize-y rounded-lg border px-3 py-2 text-xs outline-none"
+                />
+              </Field>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="subtle" size="sm">
+                Annuler
+              </Button>
+            </DialogClose>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={async () => {
+                await enregistrer();
+                setModalEdition(false);
+              }}
+            >
+              Enregistrer les modifications
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

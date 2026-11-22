@@ -31,31 +31,38 @@ export default function ActivityTrend({ company }: ActivityTrendProps) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline gap-[3px]">
-          <span className="block text-[24px] leading-none tabular-nums">
+          <span className="block text-[24px] leading-none font-bold tabular-nums">
             {a.total}
           </span>
-          <Sparkline
-            values={company.tendance}
-            className="h-[22px]"
-            anime={{ delai: 250, pas: 25 }}
-          />
+          <span className="text-xs text-subtle ml-1">
+            {a.total <= 1 ? "interaction enregistrée" : "interactions enregistrées"}
+          </span>
+          {a.total > 1 && (
+            <Sparkline
+              values={company.tendance}
+              className="h-[22px] ml-auto"
+              anime={{ delai: 250, pas: 25 }}
+            />
+          )}
         </div>
         <span className="caption-style block text-soft">
-          Sur 14 semaines · dernier échange {ilYaJours(company.dernierEchange.date)} :{" "}
-          {company.dernierEchange.libelle.toLowerCase()}
+          Dernier échange {ilYaJours(company.dernierEchange.date)} :{" "}
+          <strong className="text-foreground">{company.dernierEchange.libelle}</strong>
         </span>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="flex flex-col gap-3 rounded-lg border border-line-strong p-[11px]"
+            className="flex flex-col gap-2 rounded-lg border border-border bg-card p-2.5"
           >
-            <span className="caption-style flex items-center gap-1 text-soft">
+            <span className="caption-style flex items-center gap-1 text-subtle text-[11px]">
               <stat.icon aria-hidden className="size-3 shrink-0" />
               {stat.label}
             </span>
-            <span className="lead-style block tabular-nums">{stat.value}</span>
+            <span className="text-base font-semibold block tabular-nums text-foreground">
+              {stat.value}
+            </span>
           </div>
         ))}
       </div>

@@ -206,12 +206,29 @@ export function avancement(e: Entreprise) {
 }
 
 export function activite(e: Entreprise) {
-  const total = e.tendance.reduce((s, v) => s + v, 0);
+  const total = (e.tendance ?? []).reduce((s, v) => s + v, 0);
+  if (total <= 0) {
+    return { total: 0, emails: 0, rendezVous: 0, appels: 0 };
+  }
+  const lib = (e.dernierEchange?.libelle ?? "").toLowerCase();
+  const estEmail = lib.includes("mail");
+  const estRdv = lib.includes("rendez-vous") || lib.includes("réunion") || lib.includes("visite") || lib.includes("rdv");
+  const estAppel = lib.includes("appel") || lib.includes("téléphone");
+
+  if (total === 1) {
+    return {
+      total: 1,
+      emails: estEmail ? 1 : 0,
+      rendezVous: estRdv ? 1 : 0,
+      appels: estAppel ? 1 : 0,
+    };
+  }
+
   return {
     total,
-    emails: Math.round(total * 0.45),
-    rendezVous: Math.round(total * 0.12),
-    appels: Math.round(total * 0.28),
+    emails: Math.min(total, (estEmail ? 1 : 0) + Math.max(0, Math.floor((total - 1) * 0.4))),
+    rendezVous: Math.min(total, (estRdv ? 1 : 0) + Math.max(0, Math.floor((total - 1) * 0.2))),
+    appels: Math.min(total, (estAppel ? 1 : 0) + Math.max(0, Math.floor((total - 1) * 0.3))),
   };
 }
 

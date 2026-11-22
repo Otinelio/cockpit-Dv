@@ -61,7 +61,7 @@ type FormState = {
 function formulaireVide(moi: string): FormState {
   return {
     nom: "",
-    segment: "Restaurant",
+    segment: "PME",
     etape: "Nouveau",
     source: SOURCES[0],
     responsable: moi,
@@ -72,8 +72,8 @@ function formulaireVide(moi: string): FormState {
     pipeline: "",
     affaires: "1",
     chances: 20,
-    echangeDate: aujourdhui(),
-    echangeType: ECHANGES[0],
+    echangeDate: "",
+    echangeType: "",
     suite: "",
   };
 }
@@ -104,6 +104,18 @@ export default function NewCompanyDialog() {
       return;
     }
     setEnvoi(true);
+    const typeValide = form.echangeType.trim() && form.echangeType !== "aucun";
+    const aEchange = Boolean(typeValide || (form.echangeDate.trim() && form.echangeType !== "aucun" && form.echangeType.trim()));
+    const dernierEchange = aEchange
+      ? {
+          date: form.echangeDate.trim() || aujourdhui(),
+          libelle: form.echangeType.trim() || "Échange",
+        }
+      : {
+          date: aujourdhui(),
+          libelle: "Création",
+        };
+
     const e = await ajouter({
       nom,
       segment: form.segment,
@@ -119,7 +131,7 @@ export default function NewCompanyDialog() {
       pipeline: Math.max(0, Math.round(Number(form.pipeline) || 0)),
       affaires: Math.max(0, Math.round(Number(form.affaires) || 0)),
       chances: form.etape === "Gagné" ? 100 : form.etape === "Perdu" ? 0 : form.chances,
-      dernierEchange: { date: form.echangeDate || aujourdhui(), libelle: form.echangeType },
+      dernierEchange,
       suite: form.suite.trim(),
     });
     setEnvoi(false);
@@ -193,7 +205,7 @@ export default function NewCompanyDialog() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Venue par" htmlFor="entreprise-source">
+              <Field label="Venue par (optionnel)" htmlFor="entreprise-source">
                 <Select value={form.source} onValueChange={(v) => update("source", v)}>
                   <SelectTrigger id="entreprise-source">
                     <SelectValue />
@@ -207,21 +219,21 @@ export default function NewCompanyDialog() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Ville" htmlFor="entreprise-ville">
+              <Field label="Ville (optionnel)" htmlFor="entreprise-ville">
                 <Input
                   id="entreprise-ville"
                   value={form.ville}
                   maxLength={60}
                   onChange={(event) => update("ville", event.target.value)}
-                  placeholder="Lomé"
+                  placeholder="Ex : Lomé"
                 />
               </Field>
             </div>
           </FormSection>
 
-          <FormSection title="Contact">
+          <FormSection title="Contact (optionnel)">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Nom" htmlFor="contact-nom">
+              <Field label="Nom du contact (optionnel)" htmlFor="contact-nom">
                 <Input
                   id="contact-nom"
                   value={form.contactNom}
@@ -230,7 +242,7 @@ export default function NewCompanyDialog() {
                   placeholder="Prénom Nom"
                 />
               </Field>
-              <Field label="Téléphone" htmlFor="contact-telephone">
+              <Field label="Téléphone (optionnel)" htmlFor="contact-telephone">
                 <Input
                   id="contact-telephone"
                   type="tel"
@@ -238,23 +250,24 @@ export default function NewCompanyDialog() {
                   maxLength={30}
                   onChange={(event) => update("contactTelephone", event.target.value)}
                   className="tabular-nums"
+                  placeholder="+228 90 00 00 00"
                 />
               </Field>
             </div>
-            <Field label="E-mail" htmlFor="contact-email">
+            <Field label="E-mail (optionnel)" htmlFor="contact-email">
               <Input
                 id="contact-email"
                 type="email"
                 value={form.contactEmail}
                 maxLength={120}
                 onChange={(event) => update("contactEmail", event.target.value)}
-                placeholder="contact@entreprise.fr"
+                placeholder="contact@entreprise.com"
               />
             </Field>
           </FormSection>
 
-          <FormSection title="Responsable et affaire">
-            <Field label="Responsable" htmlFor="entreprise-responsable">
+          <FormSection title="Responsable et opportunité">
+            <Field label="Responsable du compte" htmlFor="entreprise-responsable">
               <Select value={form.responsable || moi} onValueChange={(v) => update("responsable", v)}>
                 <SelectTrigger id="entreprise-responsable">
                   <SelectValue />
@@ -273,7 +286,7 @@ export default function NewCompanyDialog() {
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Montant espéré (FCFA HT)" htmlFor="entreprise-pipeline">
+              <Field label="Montant espéré (optionnel)" htmlFor="entreprise-pipeline">
                 <div className="relative">
                   <Input
                     id="entreprise-pipeline"
@@ -283,7 +296,7 @@ export default function NewCompanyDialog() {
                     inputMode="numeric"
                     value={form.pipeline}
                     onChange={(event) => update("pipeline", event.target.value)}
-                    placeholder="500000"
+                    placeholder="0"
                     className="pr-14 tabular-nums"
                   />
                   <span
@@ -294,7 +307,7 @@ export default function NewCompanyDialog() {
                   </span>
                 </div>
               </Field>
-              <Field label="Affaires en cours" htmlFor="entreprise-affaires">
+              <Field label="Affaires en cours (optionnel)" htmlFor="entreprise-affaires">
                 <Input
                   id="entreprise-affaires"
                   type="number"
@@ -335,9 +348,9 @@ export default function NewCompanyDialog() {
             </Field>
           </FormSection>
 
-          <FormSection title="Dernier échange">
+          <FormSection title="Dernier échange & suite (optionnel)">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Date" htmlFor="echange-date">
+              <Field label="Date de l'échange (optionnel)" htmlFor="echange-date">
                 <Input
                   id="echange-date"
                   type="date"
@@ -347,12 +360,13 @@ export default function NewCompanyDialog() {
                   className="tabular-nums"
                 />
               </Field>
-              <Field label="Type" htmlFor="echange-type">
+              <Field label="Type d'échange (optionnel)" htmlFor="echange-type">
                 <Select value={form.echangeType} onValueChange={(v) => update("echangeType", v)}>
                   <SelectTrigger id="echange-type">
-                    <SelectValue />
+                    <SelectValue placeholder="Choisir un canal..." />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="aucun">Aucun pour le moment</SelectItem>
                     {ECHANGES.map((t) => (
                       <SelectItem key={t} value={t}>
                         {t}
@@ -362,13 +376,13 @@ export default function NewCompanyDialog() {
                 </Select>
               </Field>
             </div>
-            <Field label="Ce qu'il reste à faire" htmlFor="entreprise-suite">
+            <Field label="Ce qu'il reste à faire (optionnel)" htmlFor="entreprise-suite">
               <Input
                 id="entreprise-suite"
                 value={form.suite}
                 maxLength={80}
                 onChange={(event) => update("suite", event.target.value)}
-                placeholder="Envoyer le devis vendredi"
+                placeholder="Ex : Envoyer la plaquette, rappeler lundi..."
               />
             </Field>
           </FormSection>

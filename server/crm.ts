@@ -130,7 +130,7 @@ export function magasinCrm(mode: 'demo' | 'pennylane' | 'local') {
       affaires: a('affaires') ? entier(d.affaires, 'Le nombre d’affaires', 0, 99) : (base?.affaires ?? 1),
       pipeline: a('pipeline') ? entier(d.pipeline, 'Le montant du pipeline', 0, 100_000_000) : (base?.pipeline ?? 0),
       chances: a('chances') ? entier(d.chances, 'Les chances de signer', 0, 100) : (base?.chances ?? (etape === 'Gagné' || etape === 'Client' ? 100 : 10)),
-      tendance: base?.tendance ?? [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 4],
+      tendance: base?.tendance ?? [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
       dernierEchange: a('dernierEchange')
         ? (() => {
             const x = (d.dernierEchange ?? {}) as Record<string, unknown>
@@ -207,6 +207,10 @@ export function magasinCrm(mode: 'demo' | 'pennylane' | 'local') {
       let id = slug(e.nom)
       for (let n = 2; crm.entreprises.some((x) => x.id === id); n++) id = `${slug(e.nom)}-${n}`
       e.id = id
+      const prochain = Math.max(0, ...crm.entreprises.map((x) => x.pennylaneId ?? 0)) + 1
+      if (e.pennylaneId === null || e.pennylaneId === undefined) {
+        e.pennylaneId = prochain
+      }
       crm.entreprises.unshift(e)
       await ecrire(crm)
       return e
