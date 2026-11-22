@@ -1,13 +1,8 @@
 // Gestionnaire des tâches, prospections et appels d'équipe de DigitalVision.
-// Stocké dans .cockpit/taches.json.
+// Stocké dans Neon Postgres (collection 'taches').
 
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { dossierCockpit } from './stockage-chemin'
+import { lireCollection, ecrireCollection } from './db'
 import type { TacheDV } from './dv-types'
-
-const dossier = dossierCockpit()
-const fichier = path.join(dossier, 'taches.json')
 
 function tachesInitiales(): TacheDV[] {
   const aujourdhui = new Date().toISOString().slice(0, 10)
@@ -72,28 +67,16 @@ function tachesInitiales(): TacheDV[] {
 
 export class MagasinTaches {
   private memoire: TacheDV[] | null = null
-  private ecriture: Promise<void> = Promise.resolve()
 
   private async lire(): Promise<TacheDV[]> {
     if (this.memoire) return this.memoire
-    try {
-      this.memoire = JSON.parse(await fs.readFile(fichier, 'utf8')) as TacheDV[]
-    } catch {
-      this.memoire = tachesInitiales()
-      await this.sauvegarder(this.memoire)
-    }
+    this.memoire = await lireCollection<TacheDV[]>('taches', tachesInitiales())
     return this.memoire
   }
 
   private async sauvegarder(donnees: TacheDV[]) {
     this.memoire = donnees
-    this.ecriture = this.ecriture.then(async () => {
-      await fs.mkdir(dossier, { recursive: true })
-      const tmp = `${fichier}.${process.pid}.tmp`
-      await fs.writeFile(tmp, JSON.stringify(donnees, null, 2) + '\n', 'utf8')
-      await fs.rename(tmp, fichier)
-    })
-    await this.ecriture
+    await ecrireCollection<TacheDV[]>('taches', donnees)
   }
 
   async lister(): Promise<TacheDV[]> {
@@ -136,4 +119,3 @@ export class MagasinTaches {
 }
 
 export const magasinTaches = new MagasinTaches()
-

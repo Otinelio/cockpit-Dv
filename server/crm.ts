@@ -3,11 +3,9 @@
 // ordinateur (.cockpit/crm.json, ou .cockpit/crm-demo.json pour la démo), et ce que tu ajoutes reste après un rechargement.
 // Chaque client Pennylane devient une entreprise du CRM, reliée par `pennylaneId` : sa fiche montre ses factures.
 
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { dossierCockpit } from './stockage-chemin'
 import { crmDemo } from './crm-demo'
 import { crmLocal } from './crm-local'
+import { lireCollection, ecrireCollection } from './db'
 import type { PLCustomer, PLCustomerInvoice } from './types'
 
 import { ETAPES, SEGMENTS, type Contact, type Crm, type Entreprise } from './crm-types'
@@ -87,38 +85,24 @@ function tendanceFactures(factures: PLCustomerInvoice[]): number[] {
 }
 
 export function magasinCrm(mode: 'demo' | 'pennylane' | 'local') {
-  const dossier = dossierCockpit()
-  const fichier = path.join(dossier, mode === 'demo' ? 'crm-demo.json' : 'crm.json')
+  const cle = mode === 'demo' ? 'crm_demo' : 'crm'
   let memoire: Crm | null = null
-  let ecriture: Promise<void> = Promise.resolve()
 
   async function ecrire(crm: Crm) {
     memoire = crm
-    // Les écritures passent l'une après l'autre, et le fichier est remplacé d'un coup : jamais de JSON coupé en deux.
-    ecriture = ecriture.then(async () => {
-      await fs.mkdir(dossier, { recursive: true })
-      const tmp = `${fichier}.${process.pid}.tmp`
-      await fs.writeFile(tmp, JSON.stringify(crm, null, 2) + '\n', 'utf8')
-      await fs.rename(tmp, fichier)
-    })
-    await ecriture
+    await ecrireCollection<Crm>(cle, crm)
   }
 
   async function lire(): Promise<Crm> {
     if (memoire) return memoire
-    try {
-      memoire = JSON.parse(await fs.readFile(fichier, 'utf8')) as Crm
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw new ErreurCrm(500, `${fichier} est illisible : ${(e as Error).message}`)
-      await ecrire(
-        mode === 'demo'
-          ? crmDemo()
-          : mode === 'local'
-            ? crmLocal()
-            : { moi: 'Moi', equipe: [{ nom: 'Moi', role: 'Dirigeant', email: '', telephone: '', ton: 'purple' }], entreprises: [] },
-      )
-    }
-    return memoire!
+    const defaut: Crm =
+      mode === 'demo'
+        ? crmDemo()
+        : mode === 'local'
+          ? crmLocal()
+          : { moi: 'Moi', equipe: [{ nom: 'Moi', role: 'Dirigeant', email: '', telephone: '', ton: 'purple' }], entreprises: [] }
+    memoire = await lireCollection<Crm>(cle, defaut)
+    return memoire
   }
 
   const trouver = (crm: Crm, id: string) => {

@@ -2,11 +2,9 @@
 // Pas de compte, pas de service externe. Tes clients sont les entreprises de ton CRM ; leur `pennylaneId` (un nom hérité
 // du mode Pennylane) sert ici de numéro de client. Le PDF de la facture est dessiné par pdf-lib (server/pdf-facture.ts).
 
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { dossierCockpit } from './stockage-chemin'
 import { ENTREPRISE, TVA_TAUX } from '../data/entreprise'
 import { hubService } from './hub-service'
+import { lireCollection, ecrireCollection } from './db'
 import type { MagasinCrm } from './crm'
 import { genererPdf } from './pdf-facture'
 import type { CodeTva, NouvelleFacture, PLCustomer, PLCustomerInvoice, PLTransaction, Source } from './types'
@@ -73,32 +71,17 @@ function versPL(f: FactureLocale): PLCustomerInvoice {
 }
 
 export function sourceLocale(crm: MagasinCrm): SourceLocale {
-  const dossier = dossierCockpit()
-  const fichier = path.join(dossier, 'factures.json')
   let memoire: Fichier | null = null
-  let ecriture: Promise<void> = Promise.resolve()
 
   async function lire(): Promise<Fichier> {
     if (memoire) return memoire
-    try {
-      memoire = JSON.parse(await fs.readFile(fichier, 'utf8')) as Fichier
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw erreur(500, `${fichier} est illisible : ${(e as Error).message}`)
-      memoire = { prochainId: 1, factures: [] }
-    }
+    memoire = await lireCollection<Fichier>('factures', { prochainId: 1, factures: [] })
     return memoire
   }
 
   async function ecrire(f: Fichier) {
     memoire = f
-    // Les écritures passent l'une après l'autre, et le fichier est remplacé d'un coup : jamais de JSON coupé en deux.
-    ecriture = ecriture.then(async () => {
-      await fs.mkdir(dossier, { recursive: true })
-      const tmp = `${fichier}.${process.pid}.tmp`
-      await fs.writeFile(tmp, JSON.stringify(f, null, 2) + '\n', 'utf8')
-      await fs.rename(tmp, fichier)
-    })
-    await ecriture
+    await ecrireCollection<Fichier>('factures', f)
   }
 
   const trouver = (f: Fichier, id: number) => {

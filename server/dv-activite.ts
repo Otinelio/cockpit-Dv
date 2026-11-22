@@ -1,38 +1,22 @@
 // Journal d'activité (Audit Trail) partagé de DigitalVision.
 // Enregistre chaque action de l'équipe (qui a créé quoi, déplacé une opportunité, programmé un appel, etc.)
-// dans .cockpit/activite.json.
+// dans Neon Postgres (collection 'activite').
 
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { dossierCockpit } from './stockage-chemin'
+import { lireCollection, ecrireCollection } from './db'
 import type { ActiviteDV } from './dv-types'
-
-const dossier = dossierCockpit()
-const fichier = path.join(dossier, 'activite.json')
 
 export class MagasinActivite {
   private memoire: ActiviteDV[] | null = null
-  private ecriture: Promise<void> = Promise.resolve()
 
   private async lire(): Promise<ActiviteDV[]> {
     if (this.memoire) return this.memoire
-    try {
-      this.memoire = JSON.parse(await fs.readFile(fichier, 'utf8')) as ActiviteDV[]
-    } catch {
-      this.memoire = []
-    }
+    this.memoire = await lireCollection<ActiviteDV[]>('activite', [])
     return this.memoire
   }
 
   private async sauvegarder(donnees: ActiviteDV[]) {
     this.memoire = donnees
-    this.ecriture = this.ecriture.then(async () => {
-      await fs.mkdir(dossier, { recursive: true })
-      const tmp = `${fichier}.${process.pid}.tmp`
-      await fs.writeFile(tmp, JSON.stringify(donnees, null, 2) + '\n', 'utf8')
-      await fs.rename(tmp, fichier)
-    })
-    await this.ecriture
+    await ecrireCollection<ActiviteDV[]>('activite', donnees)
   }
 
   async lister(limite = 50): Promise<ActiviteDV[]> {
@@ -56,4 +40,3 @@ export class MagasinActivite {
 }
 
 export const magasinActivite = new MagasinActivite()
-

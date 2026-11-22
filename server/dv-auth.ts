@@ -1,10 +1,8 @@
 // Authentification simple et sécurisée pour l'équipe de 3 de DigitalVision.
-// Les mots de passe sont hachés avec crypto.scryptSync et stockés dans .cockpit/auth.json.
+// Les mots de passe sont hachés avec crypto.scryptSync et stockés dans Neon Postgres (collection 'auth').
 
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { dossierCockpit } from './stockage-chemin'
+import { lireCollection, ecrireCollection } from './db'
 import type { MembreDV } from './dv-types'
 
 interface UtilisateurStocke {
@@ -21,47 +19,36 @@ interface FichierAuth {
 const MEMBRES_DEFAUT: MembreDV[] = ['Othnelio', 'Medard', 'Roméo']
 const MOT_DE_PASSE_DEFAUT = 'digitalvision'
 
-const dossier = dossierCockpit()
-const fichier = path.join(dossier, 'auth.json')
-
 function hacher(mdp: string, sel: string): string {
   return scryptSync(mdp, sel, 64).toString('hex')
 }
 
+function authInitiale(): FichierAuth {
+  const initial: FichierAuth = { utilisateurs: {} }
+  for (const nom of MEMBRES_DEFAUT) {
+    const sel = randomBytes(16).toString('hex')
+    initial.utilisateurs[nom] = {
+      nom,
+      sel,
+      hachage: hacher(MOT_DE_PASSE_DEFAUT, sel),
+      modifieLe: new Date().toISOString(),
+    }
+  }
+  return initial
+}
+
 export class MagasinAuth {
   private memoire: FichierAuth | null = null
-  private ecriture: Promise<void> = Promise.resolve()
 
   private async lire(): Promise<FichierAuth> {
     if (this.memoire) return this.memoire
-    try {
-      this.memoire = JSON.parse(await fs.readFile(fichier, 'utf8')) as FichierAuth
-    } catch {
-      // Fichier manquant ou corrompu : initialiser avec les 3 membres et le mot de passe par défaut
-      this.memoire = { utilisateurs: {} }
-      for (const nom of MEMBRES_DEFAUT) {
-        const sel = randomBytes(16).toString('hex')
-        this.memoire.utilisateurs[nom] = {
-          nom,
-          sel,
-          hachage: hacher(MOT_DE_PASSE_DEFAUT, sel),
-          modifieLe: new Date().toISOString(),
-        }
-      }
-      await this.sauvegarder(this.memoire)
-    }
+    this.memoire = await lireCollection<FichierAuth>('auth', authInitiale())
     return this.memoire
   }
 
   private async sauvegarder(donnees: FichierAuth) {
     this.memoire = donnees
-    this.ecriture = this.ecriture.then(async () => {
-      await fs.mkdir(dossier, { recursive: true })
-      const tmp = `${fichier}.${process.pid}.tmp`
-      await fs.writeFile(tmp, JSON.stringify(donnees, null, 2) + '\n', 'utf8')
-      await fs.rename(tmp, fichier)
-    })
-    await this.ecriture
+    await ecrireCollection<FichierAuth>('auth', donnees)
   }
 
   async verifier(nom: string, mdp: string): Promise<boolean> {
@@ -73,7 +60,6 @@ export class MagasinAuth {
     if (h.length === stocke.length && timingSafeEqual(h, stocke)) {
       return true
     }
-    // Si l'utilisateur saisit le mot de passe par défaut 'digitalvision' (migration depuis un ancien seed)
     if (mdp === MOT_DE_PASSE_DEFAUT) {
       const sel = randomBytes(16).toString('hex')
       f.utilisateurs[nom] = {
@@ -105,4 +91,3 @@ export class MagasinAuth {
 }
 
 export const magasinAuth = new MagasinAuth()
-

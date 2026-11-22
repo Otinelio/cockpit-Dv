@@ -2,11 +2,11 @@
 // Gère la persistance atomique sur fichiers dans .cockpit/ et le chiffrement AES-256-GCM
 
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto'
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { dossierCockpit } from './stockage-chemin'
 import { ENTREPRISE } from '../data/entreprise'
 import { magasinActivite } from './dv-activite'
+import { lireCollection, ecrireCollection } from './db'
+import { stockerFichier, lireFichier, supprimerFichier } from './storage'
 import type {
   AssocieDV,
   AuditAccesCoffre,
@@ -20,14 +20,12 @@ import type {
   VisionStrategique,
 } from './hub-types'
 
-const dossier = dossierCockpit()
-const fichierEntreprise = path.join(dossier, 'entreprise.json')
-const fichierCoffre = path.join(dossier, 'coffre.json')
-const fichierStrategie = path.join(dossier, 'strategie.json')
-const fichierAssocies = path.join(dossier, 'associes.json')
-const fichierReunions = path.join(dossier, 'reunions.json')
-const fichierDocuments = path.join(dossier, 'documents.json')
-const dossierFichiersStockage = path.join(dossier, 'documents', 'fichiers')
+const fichierEntreprise = 'entreprise'
+const fichierCoffre = 'coffre'
+const fichierStrategie = 'strategie'
+const fichierAssocies = 'associes'
+const fichierReunions = 'reunions'
+const fichierDocuments = 'documents'
 
 // --- CHIFFREMENT AES-256-GCM ---
 const ALGO = 'aes-256-gcm'
@@ -67,10 +65,8 @@ function dechiffrer(secretChiffre: string, ivHex: string, authTagHex: string, cl
 }
 
 async function ecrireFichierAtomique(chemin: string, donnees: unknown) {
-  await fs.mkdir(path.dirname(chemin), { recursive: true })
-  const tmp = `${chemin}.${process.pid}.${Date.now()}.tmp`
-  await fs.writeFile(tmp, JSON.stringify(donnees, null, 2) + '\n', 'utf8')
-  await fs.rename(tmp, chemin)
+  const cle = path.basename(chemin, '.json')
+  await ecrireCollection(cle, donnees)
 }
 
 export class HubService {
@@ -86,44 +82,40 @@ export class HubService {
   // ==========================================
   async obtenirIdentite(): Promise<IdentiteEntreprise> {
     if (this.memoireEntreprise) return this.memoireEntreprise
-    try {
-      this.memoireEntreprise = JSON.parse(await fs.readFile(fichierEntreprise, 'utf8')) as IdentiteEntreprise
-    } catch {
-      this.memoireEntreprise = {
-        nomCommercial: ENTREPRISE.nom || 'DigitalVision',
-        slogan: 'Ingénierie logicielle & Solutions numériques souveraines',
-        description:
-          'Entreprise technologique basée à Lomé, spécialisée dans le développement de solutions SaaS, d’applications mobiles et la transformation numérique des entreprises togolaises et ouest-africaines.',
-        mission:
-          'Concevoir des logiciels et services numériques fiables et élégants qui accélèrent la croissance des entrepreneurs et institutions en Afrique.',
-        vision:
-          'Devenir le studio produit et technologique de référence en Afrique de l’Ouest d’ici 2030.',
-        valeurs: ['Excellence technique', 'Intégrité', 'Pragmatisme', 'Impact local'],
-        logoPrincipal: '/assets/images/_common/logo.svg',
-        logoVariantes: [],
-        telephones: [ENTREPRISE.telephone || '+228 90 00 00 00'],
-        emails: [ENTREPRISE.email || 'contact@digitalvision.tg'],
-        adressePhysique: ENTREPRISE.adresse || 'Lomé, Togo',
-        siteWeb: 'https://digitalvision.tg',
-        reseauxSociaux: [
-          { plateforme: 'linkedin', url: 'https://linkedin.com/company/digitalvision-tg' },
-          { plateforme: 'x', url: 'https://x.com/digitalvision_tg' },
-          { plateforme: 'github', url: 'https://github.com/digitalvision' },
-        ],
-        nif: ENTREPRISE.nif || '',
-        rccm: ENTREPRISE.rccm || '',
-        coordonneesPaiement: {
-          banque: 'Compte Entreprise Togo',
-          ibanOuRib: '',
-          tMoney: '+228 90 00 00 00',
-          flooz: '+228 99 00 00 00',
-          mentions: ENTREPRISE.mentions || 'Facture payable à réception. DigitalVision SARL-U.',
-        },
-        modifieLe: new Date().toISOString(),
-        modifiePar: 'Système',
-      }
-      await ecrireFichierAtomique(fichierEntreprise, this.memoireEntreprise)
+    const defaut: IdentiteEntreprise = {
+      nomCommercial: ENTREPRISE.nom || 'DigitalVision',
+      slogan: 'Ingénierie logicielle & Solutions numériques souveraines',
+      description:
+        'Entreprise technologique basée à Lomé, spécialisée dans le développement de solutions SaaS, d’applications mobiles et la transformation numérique des entreprises togolaises et ouest-africaines.',
+      mission:
+        'Concevoir des logiciels et services numériques fiables et élégants qui accélèrent la croissance des entrepreneurs et institutions en Afrique.',
+      vision:
+        'Devenir le studio produit et technologique de référence en Afrique de l’Ouest d’ici 2030.',
+      valeurs: ['Excellence technique', 'Intégrité', 'Pragmatisme', 'Impact local'],
+      logoPrincipal: '/assets/images/_common/logo.svg',
+      logoVariantes: [],
+      telephones: [ENTREPRISE.telephone || '+228 90 00 00 00'],
+      emails: [ENTREPRISE.email || 'contact@digitalvision.tg'],
+      adressePhysique: ENTREPRISE.adresse || 'Lomé, Togo',
+      siteWeb: 'https://digitalvision.tg',
+      reseauxSociaux: [
+        { plateforme: 'linkedin', url: 'https://linkedin.com/company/digitalvision-tg' },
+        { plateforme: 'x', url: 'https://x.com/digitalvision_tg' },
+        { plateforme: 'github', url: 'https://github.com/digitalvision' },
+      ],
+      nif: ENTREPRISE.nif || '',
+      rccm: ENTREPRISE.rccm || '',
+      coordonneesPaiement: {
+        banque: 'Compte Entreprise Togo',
+        ibanOuRib: '',
+        tMoney: '+228 90 00 00 00',
+        flooz: '+228 99 00 00 00',
+        mentions: ENTREPRISE.mentions || 'Facture payable à réception. DigitalVision SARL-U.',
+      },
+      modifieLe: new Date().toISOString(),
+      modifiePar: 'Système',
     }
+    this.memoireEntreprise = await lireCollection<IdentiteEntreprise>('entreprise', defaut)
     return this.memoireEntreprise
   }
 
@@ -150,16 +142,12 @@ export class HubService {
   // ==========================================
   private async chargerCoffre(): Promise<FichierCoffreStockage> {
     if (this.memoireCoffre) return this.memoireCoffre
-    try {
-      this.memoireCoffre = JSON.parse(await fs.readFile(fichierCoffre, 'utf8')) as FichierCoffreStockage
-    } catch {
-      this.memoireCoffre = {
-        selMaitre: randomBytes(16).toString('hex'),
-        entrees: [],
-        audits: [],
-      }
-      await ecrireFichierAtomique(fichierCoffre, this.memoireCoffre)
+    const defaut: FichierCoffreStockage = {
+      selMaitre: randomBytes(16).toString('hex'),
+      entrees: [],
+      audits: [],
     }
+    this.memoireCoffre = await lireCollection<FichierCoffreStockage>('coffre', defaut)
     return this.memoireCoffre
   }
 
@@ -360,86 +348,82 @@ export class HubService {
   // ==========================================
   async obtenirStrategie(): Promise<VisionStrategique> {
     if (this.memoireStrategie) return this.memoireStrategie
-    try {
-      this.memoireStrategie = JSON.parse(await fs.readFile(fichierStrategie, 'utf8')) as VisionStrategique
-    } catch {
-      this.memoireStrategie = {
-        horizon: '2026 - 2030',
-        ambitions: [
-          'Générer 5 000 000 FCFA de MRR sur les produits SaaS propriétaires (MivaFid, MivaCouture).',
-          'Devenir le partenaire technologique de référence de 50 PME togolaises d’ici fin 2027.',
-          'Consolider une équipe agile de 10 ingénieurs et experts produits à Lomé.',
-        ],
-        positionnement:
-          'Studio d’ingénierie logicielle & éditeur de solutions SaaS pratiques, adaptées aux réalités économiques ouest-africaines (mobile-first, paiements T-Money/Flooz intégrés).',
-        marchesVises: ['Restauration & Hôtellerie', 'Mode & Métiers d’artisanat', 'Services & Commerce de détail'],
-        piliersStrategiques: [
-          {
-            id: 'pil-1',
-            titre: 'Excellence Produit & SaaS',
-            description: 'Créer des logiciels simples à utiliser qui résolvent un vrai problème quotidien.',
-          },
-          {
-            id: 'pil-2',
-            titre: 'Proximité & Relations Clients',
-            description: 'Présence active sur le terrain, écoute continue et accompagnement sur-mesure.',
-          },
-          {
-            id: 'pil-3',
-            titre: 'Discipline Financière & Cash-Flow',
-            description: 'Rentabilité dès le premier jour, suivi rigoureux des encaissements et trésorerie saine.',
-          },
-        ],
-        resolutionsAnnuelles: [
-          {
-            id: 'res-2026',
-            annee: 2026,
-            titre: 'Année de la traction commerciale et du lancement de MivaFid',
-            description: 'Valider le modèle payant de MivaFid auprès de 30 restaurants et structurer le studio.',
-            resultatsAttendus: [
-              '30 restaurants actifs sur MivaFid à Lomé',
-              'Finalisation de la V1 de MivaCouture',
-              'Atteindre 1 000 000 FCFA de MRR récurrent',
-            ],
-            responsable: 'Othnelio',
-            statut: 'en_cours',
-          },
-        ],
-        objectifsMensuels: [
-          {
-            id: 'obj-1',
-            mois: new Date().toISOString().slice(0, 7),
-            titre: 'Déployer les 5 premiers restaurants pilotes sur MivaFid',
-            indicateur: 'Restaurants pilotes installés et formés',
-            cible: 5,
-            actuel: 2,
-            unite: 'restaurants',
-            responsable: 'Medard',
-            echeance: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
-            statut: 'en_cours',
-            progression: 40,
-            actions: [
-              {
-                id: 'act-1',
-                titre: 'Finaliser la signalétique QR Code à imprimer pour comptoirs',
-                responsable: 'Medard',
-                echeance: new Date().toISOString().slice(0, 10),
-                statut: 'en_cours',
-              },
-              {
-                id: 'act-2',
-                titre: 'Tester le flux complet d’ajout de points via scan',
-                responsable: 'Othnelio',
-                echeance: new Date().toISOString().slice(0, 10),
-                statut: 'a_faire',
-              },
-            ],
-          },
-        ],
-        misAJourLe: new Date().toISOString(),
-      }
-      await ecrireFichierAtomique(fichierStrategie, this.memoireStrategie)
+    const defaut: VisionStrategique = {
+      horizon: '2026 - 2030',
+      ambitions: [
+        'Générer 5 000 000 FCFA de MRR sur les produits SaaS propriétaires (MivaFid, MivaCouture).',
+        'Devenir le partenaire technologique de référence de 50 PME togolaises d’ici fin 2027.',
+        'Consolider une équipe agile de 10 ingénieurs et experts produits à Lomé.',
+      ],
+      positionnement:
+        'Studio d’ingénierie logicielle & éditeur de solutions SaaS pratiques, adaptées aux réalités économiques ouest-africaines (mobile-first, paiements T-Money/Flooz intégrés).',
+      marchesVises: ['Restauration & Hôtellerie', 'Mode & Métiers d’artisanat', 'Services & Commerce de détail'],
+      piliersStrategiques: [
+        {
+          id: 'pil-1',
+          titre: 'Excellence Produit & SaaS',
+          description: 'Créer des logiciels simples à utiliser qui résolvent un vrai problème quotidien.',
+        },
+        {
+          id: 'pil-2',
+          titre: 'Proximité & Relations Clients',
+          description: 'Présence active sur le terrain, écoute continue et accompagnement sur-mesure.',
+        },
+        {
+          id: 'pil-3',
+          titre: 'Discipline Financière & Cash-Flow',
+          description: 'Rentabilité dès le premier jour, suivi rigoureux des encaissements et trésorerie saine.',
+        },
+      ],
+      resolutionsAnnuelles: [
+        {
+          id: 'res-2026',
+          annee: 2026,
+          titre: 'Année de la traction commerciale et du lancement de MivaFid',
+          description: 'Valider le modèle payant de MivaFid auprès de 30 restaurants et structurer le studio.',
+          resultatsAttendus: [
+            '30 restaurants actifs sur MivaFid à Lomé',
+            'Finalisation de la V1 de MivaCouture',
+            'Atteindre 1 000 000 FCFA de MRR récurrent',
+          ],
+          responsable: 'Othnelio',
+          statut: 'en_cours',
+        },
+      ],
+      objectifsMensuels: [
+        {
+          id: 'obj-1',
+          mois: new Date().toISOString().slice(0, 7),
+          titre: 'Déployer les 5 premiers restaurants pilotes sur MivaFid',
+          indicateur: 'Restaurants pilotes installés et formés',
+          cible: 5,
+          actuel: 2,
+          unite: 'restaurants',
+          responsable: 'Medard',
+          echeance: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
+          statut: 'en_cours',
+          progression: 40,
+          actions: [
+            {
+              id: 'act-1',
+              titre: 'Finaliser la signalétique QR Code à imprimer pour comptoirs',
+              responsable: 'Medard',
+              echeance: new Date().toISOString().slice(0, 10),
+              statut: 'en_cours',
+            },
+            {
+              id: 'act-2',
+              titre: 'Tester le flux complet d’ajout de points via scan',
+              responsable: 'Othnelio',
+              echeance: new Date().toISOString().slice(0, 10),
+              statut: 'a_faire',
+            },
+          ],
+        },
+      ],
+      misAJourLe: new Date().toISOString(),
     }
+    this.memoireStrategie = await lireCollection<VisionStrategique>('strategie', defaut)
     return this.memoireStrategie
   }
 
@@ -465,76 +449,72 @@ export class HubService {
   // ==========================================
   async obtenirAssocies(): Promise<AssocieDV[]> {
     if (this.memoireAssocies) return this.memoireAssocies
-    try {
-      this.memoireAssocies = JSON.parse(await fs.readFile(fichierAssocies, 'utf8')) as AssocieDV[]
-    } catch {
-      this.memoireAssocies = [
-        {
-          id: 'associe-othnelio',
-          nom: 'Othnelio',
-          fonction: 'CTO · Tech & Stratégie',
-          roleDetaille:
-            'Direction technique, architecture logicielle des solutions SaaS et sur-mesure, infrastructure cloud, sécurité et vision technologique globale.',
-          email: 'othnelio@digitalvision.tg',
-          telephone: '+228 90 00 00 01',
-          responsabilites: [
-            'Architecture logicielle & Dev full-stack (Next.js, Flutter, Node.js)',
-            'Gestion de l’infrastructure d’hébergement et CI/CD',
-            'Sécurité applicative et intégrité des données',
-            'Planification des roadmaps techniques des produits SaaS',
-          ],
-          competences: ['TypeScript', 'Next.js', 'React', 'Flutter', 'PostgreSQL', 'Architecture Cloud', 'DevOps'],
-          objectifsIndividuels: [
-            'Garantir 99.9% de disponibilité sur les SaaS en production',
-            'Accélérer les cycles de livraison MVP à moins de 3 semaines',
-          ],
-          ordre: 1,
-        },
-        {
-          id: 'associe-medard',
-          nom: 'Medard',
-          fonction: 'CMO · Produit & Exécution',
-          roleDetaille:
-            'Gestion de produit, design d’expérience utilisateur (UI/UX), stratégie marketing, acquisition d’utilisateurs et animation des lancements.',
-          email: 'medard@digitalvision.tg',
-          telephone: '+228 90 00 00 02',
-          responsabilites: [
-            'Conception des maquettes et parcours utilisateurs',
-            'Tests terrain auprès des utilisateurs finaux',
-            'Campagnes d’acquisition, réseaux sociaux et visibilité de marque',
-            'Documentation produit et supports de formation',
-          ],
-          competences: ['UI/UX Design', 'Product Management', 'Marketing Digital', 'Growth Hacking', 'Copywriting'],
-          objectifsIndividuels: [
-            'Faire tester MivaFid à au moins 20 commerçants par mois',
-            'Structurer une identité visuelle forte et reconnaissable pour DigitalVision',
-          ],
-          ordre: 2,
-        },
-        {
-          id: 'associe-romeo',
-          nom: 'Roméo',
-          fonction: 'COO · Commercial, Opérations & Relations clients',
-          roleDetaille:
-            'Direction commerciale, négociation des contrats, prospection terrain, gestion financière courante et relation client de premier plan.',
-          email: 'romeo@digitalvision.tg',
-          telephone: '+228 90 00 00 03',
-          responsabilites: [
-            'Prospection active et closing des contrats clients',
-            'Gestion des devis, facturations et relances des impayés',
-            'Partenariats stratégiques avec les commerces et institutions',
-            'Gestion administrative et conformité juridique',
-          ],
-          competences: ['Négociation commerciale', 'Gestion de la relation client (CRM)', 'Gestion administrative', 'Opérations terrain'],
-          objectifsIndividuels: [
-            'Atteindre 100% de taux de recouvrement des factures sous 30 jours',
-            'Clôturer 3 nouveaux contrats de développement de sites/logiciels par trimestre',
-          ],
-          ordre: 3,
-        },
-      ]
-      await ecrireFichierAtomique(fichierAssocies, this.memoireAssocies)
-    }
+    const defaut: AssocieDV[] = [
+      {
+        id: 'associe-othnelio',
+        nom: 'Othnelio',
+        fonction: 'CTO · Tech & Stratégie',
+        roleDetaille:
+          'Direction technique, architecture logicielle des solutions SaaS et sur-mesure, infrastructure cloud, sécurité et vision technologique globale.',
+        email: 'othnelio@digitalvision.tg',
+        telephone: '+228 90 00 00 01',
+        responsabilites: [
+          'Architecture logicielle & Dev full-stack (Next.js, Flutter, Node.js)',
+          'Gestion de l’infrastructure d’hébergement et CI/CD',
+          'Sécurité applicative et intégrité des données',
+          'Planification des roadmaps techniques des produits SaaS',
+        ],
+        competences: ['TypeScript', 'Next.js', 'React', 'Flutter', 'PostgreSQL', 'Architecture Cloud', 'DevOps'],
+        objectifsIndividuels: [
+          'Garantir 99.9% de disponibilité sur les SaaS en production',
+          'Accélérer les cycles de livraison MVP à moins de 3 semaines',
+        ],
+        ordre: 1,
+      },
+      {
+        id: 'associe-medard',
+        nom: 'Medard',
+        fonction: 'CMO · Produit & Exécution',
+        roleDetaille:
+          'Gestion de produit, design d’expérience utilisateur (UI/UX), stratégie marketing, acquisition d’utilisateurs et animation des lancements.',
+        email: 'medard@digitalvision.tg',
+        telephone: '+228 90 00 00 02',
+        responsabilites: [
+          'Conception des maquettes et parcours utilisateurs',
+          'Tests terrain auprès des utilisateurs finaux',
+          'Campagnes d’acquisition, réseaux sociaux et visibilité de marque',
+          'Documentation produit et supports de formation',
+        ],
+        competences: ['UI/UX Design', 'Product Management', 'Marketing Digital', 'Growth Hacking', 'Copywriting'],
+        objectifsIndividuels: [
+          'Faire tester MivaFid à au moins 20 commerçants par mois',
+          'Structurer une identité visuelle forte et reconnaissable pour DigitalVision',
+        ],
+        ordre: 2,
+      },
+      {
+        id: 'associe-romeo',
+        nom: 'Roméo',
+        fonction: 'COO · Commercial, Opérations & Relations clients',
+        roleDetaille:
+          'Direction commerciale, négociation des contrats, prospection terrain, gestion financière courante et relation client de premier plan.',
+        email: 'romeo@digitalvision.tg',
+        telephone: '+228 90 00 00 03',
+        responsabilites: [
+          'Prospection active et closing des contrats clients',
+          'Gestion des devis, facturations et relances des impayés',
+          'Partenariats stratégiques avec les commerces et institutions',
+          'Gestion administrative et conformité juridique',
+        ],
+        competences: ['Négociation commerciale', 'Gestion de la relation client (CRM)', 'Gestion administrative', 'Opérations terrain'],
+        objectifsIndividuels: [
+          'Atteindre 100% de taux de recouvrement des factures sous 30 jours',
+          'Clôturer 3 nouveaux contrats de développement de sites/logiciels par trimestre',
+        ],
+        ordre: 3,
+      },
+    ]
+    this.memoireAssocies = await lireCollection<AssocieDV[]>('associes', defaut)
     return this.memoireAssocies
   }
 
@@ -559,46 +539,42 @@ export class HubService {
   // ==========================================
   async obtenirReunions(): Promise<ReunionDV[]> {
     if (this.memoireReunions) return this.memoireReunions
-    try {
-      this.memoireReunions = JSON.parse(await fs.readFile(fichierReunions, 'utf8')) as ReunionDV[]
-    } catch {
-      this.memoireReunions = [
-        {
-          id: 'reunion-init',
-          titre: 'Réunion de cadrage stratégique & lancement Cockpit Hub',
-          dateHeure: new Date().toISOString(),
-          lieu: 'Bureau DigitalVision / Lomé',
-          participants: ['Othnelio', 'Medard', 'Roméo'],
-          ordreDuJour: [
-            'Structuration du module central Entreprise',
-            'Revue des objectifs SaaS Q4',
-            'Sécurisation des accès et gestion documentaire',
-          ],
-          notes:
-            'Accord unanime sur la centralisation institutionnelle dans Cockpit DV. Chaque associé dispose désormais d’un accès direct à la stratégie, aux documents officiels et au coffre-fort sécurisé.',
-          decisions: [
-            {
-              id: 'dec-1',
-              titre: 'Adoption de Cockpit comme source unique de vérité pour les 3 associés',
-              description: 'Toutes les décisions et résolutions sont consignées ici.',
-              statut: 'validee',
-            },
-          ],
-          resolutions: [
-            {
-              id: 'res-1',
-              titre: 'Déployer les premiers restaurants pilotes MivaFid',
-              responsable: 'Medard',
-              echeance: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-              statut: 'en_cours',
-            },
-          ],
-          creePar: 'Othnelio',
-          creeLe: new Date().toISOString(),
-        },
-      ]
-      await ecrireFichierAtomique(fichierReunions, this.memoireReunions)
-    }
+    const defaut: ReunionDV[] = [
+      {
+        id: 'reunion-init',
+        titre: 'Réunion de cadrage stratégique & lancement Cockpit Hub',
+        dateHeure: new Date().toISOString(),
+        lieu: 'Bureau DigitalVision / Lomé',
+        participants: ['Othnelio', 'Medard', 'Roméo'],
+        ordreDuJour: [
+          'Structuration du module central Entreprise',
+          'Revue des objectifs SaaS Q4',
+          'Sécurisation des accès et gestion documentaire',
+        ],
+        notes:
+          'Accord unanime sur la centralisation institutionnelle dans Cockpit DV. Chaque associé dispose désormais d’un accès direct à la stratégie, aux documents officiels et au coffre-fort sécurisé.',
+        decisions: [
+          {
+            id: 'dec-1',
+            titre: 'Adoption de Cockpit comme source unique de vérité pour les 3 associés',
+            description: 'Toutes les décisions et résolutions sont consignées ici.',
+            statut: 'validee',
+          },
+        ],
+        resolutions: [
+          {
+            id: 'res-1',
+            titre: 'Déployer les premiers restaurants pilotes MivaFid',
+            responsable: 'Medard',
+            echeance: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+            statut: 'en_cours',
+          },
+        ],
+        creePar: 'Othnelio',
+        creeLe: new Date().toISOString(),
+      },
+    ]
+    this.memoireReunions = await lireCollection<ReunionDV[]>('reunions', defaut)
     return this.memoireReunions
   }
 
@@ -657,26 +633,18 @@ export class HubService {
   // ==========================================
   private async chargerDocumentsData(): Promise<{ dossiers: DossierDV[]; documents: DocumentDV[] }> {
     if (this.memoireDocuments) return this.memoireDocuments
-    try {
-      this.memoireDocuments = JSON.parse(await fs.readFile(fichierDocuments, 'utf8')) as {
-        dossiers: DossierDV[]
-        documents: DocumentDV[]
-      }
-    } catch {
-      this.memoireDocuments = {
-        dossiers: [
-          { id: 'dos-admin', nom: 'Administratif', parentId: null, creeLe: new Date().toISOString() },
-          { id: 'dos-identite', nom: 'Identité visuelle', parentId: null, creeLe: new Date().toISOString() },
-          { id: 'dos-strat', nom: 'Stratégie', parentId: null, creeLe: new Date().toISOString() },
-          { id: 'dos-reunions', nom: 'Réunions', parentId: null, creeLe: new Date().toISOString() },
-          { id: 'dos-ressources', nom: 'Ressources', parentId: null, creeLe: new Date().toISOString() },
-          { id: 'dos-archives', nom: 'Archives', parentId: null, creeLe: new Date().toISOString() },
-        ],
-        documents: [],
-      }
-      await ecrireFichierAtomique(fichierDocuments, this.memoireDocuments)
+    const defaut = {
+      dossiers: [
+        { id: 'dos-admin', nom: 'Administratif', parentId: null, creeLe: new Date().toISOString() },
+        { id: 'dos-identite', nom: 'Identité visuelle', parentId: null, creeLe: new Date().toISOString() },
+        { id: 'dos-strat', nom: 'Stratégie', parentId: null, creeLe: new Date().toISOString() },
+        { id: 'dos-reunions', nom: 'Réunions', parentId: null, creeLe: new Date().toISOString() },
+        { id: 'dos-ressources', nom: 'Ressources', parentId: null, creeLe: new Date().toISOString() },
+        { id: 'dos-archives', nom: 'Archives', parentId: null, creeLe: new Date().toISOString() },
+      ],
+      documents: [],
     }
-    await fs.mkdir(dossierFichiersStockage, { recursive: true })
+    this.memoireDocuments = await lireCollection<{ dossiers: DossierDV[]; documents: DocumentDV[] }>('documents', defaut)
     return this.memoireDocuments
   }
 
@@ -733,10 +701,8 @@ export class HubService {
     const id = `doc-${Date.now()}-${randomBytes(4).toString('hex')}`
     const ext = path.extname(nomFichierOriginal).toLowerCase()
     const nomSurDisque = `${id}${ext}`
-    const cheminAbsolu = path.join(dossierFichiersStockage, nomSurDisque)
 
-    await fs.mkdir(dossierFichiersStockage, { recursive: true })
-    await fs.writeFile(cheminAbsolu, buffer)
+    await stockerFichier(nomSurDisque, buffer, mimeType)
 
     const nouveau: DocumentDV = {
       id,
@@ -774,13 +740,9 @@ export class HubService {
     const data = await this.chargerDocumentsData()
     const doc = data.documents.find((d) => d.id === id)
     if (!doc) return null
-    const chemin = path.join(dossierFichiersStockage, doc.cheminStockage)
-    try {
-      const buffer = await fs.readFile(chemin)
-      return { document: doc, buffer }
-    } catch {
-      return null
-    }
+    const fichier = await lireFichier(doc.cheminStockage)
+    if (!fichier) return null
+    return { document: doc, buffer: fichier.buffer }
   }
 
   async renommerDocument(id: string, nouveauNom: string): Promise<boolean> {
@@ -808,8 +770,7 @@ export class HubService {
     const index = data.documents.findIndex((d) => d.id === id)
     if (index === -1) return false
     const [doc] = data.documents.splice(index, 1)
-    const chemin = path.join(dossierFichiersStockage, doc.cheminStockage)
-    await fs.unlink(chemin).catch(() => {})
+    await supprimerFichier(doc.cheminStockage)
     await ecrireFichierAtomique(fichierDocuments, data)
     return true
   }

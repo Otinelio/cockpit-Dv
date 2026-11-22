@@ -1,13 +1,8 @@
 // Gestion des dépenses et sorties d'argent de DigitalVision.
-// Stocké dans .cockpit/depenses.json.
+// Stocké dans Neon Postgres (collection 'depenses').
 
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { dossierCockpit } from './stockage-chemin'
+import { lireCollection, ecrireCollection } from './db'
 import type { DepenseDV } from './dv-types'
-
-const dossier = dossierCockpit()
-const fichier = path.join(dossier, 'depenses.json')
 
 function depensesInitiales(): DepenseDV[] {
   const moisCourant = new Date().toISOString().slice(0, 7)
@@ -50,28 +45,16 @@ function depensesInitiales(): DepenseDV[] {
 
 export class MagasinDepenses {
   private memoire: DepenseDV[] | null = null
-  private ecriture: Promise<void> = Promise.resolve()
 
   private async lire(): Promise<DepenseDV[]> {
     if (this.memoire) return this.memoire
-    try {
-      this.memoire = JSON.parse(await fs.readFile(fichier, 'utf8')) as DepenseDV[]
-    } catch {
-      this.memoire = depensesInitiales()
-      await this.sauvegarder(this.memoire)
-    }
+    this.memoire = await lireCollection<DepenseDV[]>('depenses', depensesInitiales())
     return this.memoire
   }
 
   private async sauvegarder(donnees: DepenseDV[]) {
     this.memoire = donnees
-    this.ecriture = this.ecriture.then(async () => {
-      await fs.mkdir(dossier, { recursive: true })
-      const tmp = `${fichier}.${process.pid}.tmp`
-      await fs.writeFile(tmp, JSON.stringify(donnees, null, 2) + '\n', 'utf8')
-      await fs.rename(tmp, fichier)
-    })
-    await this.ecriture
+    await ecrireCollection<DepenseDV[]>('depenses', donnees)
   }
 
   async lister(): Promise<DepenseDV[]> {
@@ -98,14 +81,14 @@ export class MagasinDepenses {
     return true
   }
 
-  async totalMois(mois?: string): Promise<number> {
+  async modifier(id: string, modifs: Partial<Omit<DepenseDV, 'id' | 'creeeLe'>>): Promise<DepenseDV | null> {
     const list = await this.lire()
-    const prefixe = mois || new Date().toISOString().slice(0, 7)
-    return list
-      .filter((d) => d.date.startsWith(prefixe))
-      .reduce((sum, d) => sum + d.montantFCFA, 0)
+    const idx = list.findIndex((d) => d.id === id)
+    if (idx === -1) return null
+    list[idx] = { ...list[idx], ...modifs }
+    await this.sauvegarder(list)
+    return list[idx]
   }
 }
 
 export const magasinDepenses = new MagasinDepenses()
-

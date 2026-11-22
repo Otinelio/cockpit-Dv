@@ -1,38 +1,21 @@
 // Gestion des contrats de prestation, maintenance et conventions de DigitalVision.
-// Stocké dans .cockpit/contrats.json.
+// Stocké dans Neon Postgres (collection 'contrats').
 
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { dossierCockpit } from './stockage-chemin'
+import { lireCollection, ecrireCollection } from './db'
 import type { ContratDV } from './dv-types'
-
-const dossier = dossierCockpit()
-const fichier = path.join(dossier, 'contrats.json')
 
 export class MagasinContrats {
   private memoire: ContratDV[] | null = null
-  private ecriture: Promise<void> = Promise.resolve()
 
   private async lire(): Promise<ContratDV[]> {
     if (this.memoire) return this.memoire
-    try {
-      this.memoire = JSON.parse(await fs.readFile(fichier, 'utf8')) as ContratDV[]
-    } catch {
-      this.memoire = []
-      await this.sauvegarder(this.memoire)
-    }
+    this.memoire = await lireCollection<ContratDV[]>('contrats', [])
     return this.memoire
   }
 
   private async sauvegarder(donnees: ContratDV[]) {
     this.memoire = donnees
-    this.ecriture = this.ecriture.then(async () => {
-      await fs.mkdir(dossier, { recursive: true })
-      const tmp = `${fichier}.${process.pid}.tmp`
-      await fs.writeFile(tmp, JSON.stringify(donnees, null, 2) + '\n', 'utf8')
-      await fs.rename(tmp, fichier)
-    })
-    await this.ecriture
+    await ecrireCollection<ContratDV[]>('contrats', donnees)
   }
 
   async lister(): Promise<ContratDV[]> {
@@ -75,4 +58,3 @@ export class MagasinContrats {
 }
 
 export const magasinContrats = new MagasinContrats()
-

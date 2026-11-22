@@ -1,13 +1,8 @@
 // Gestion du pôle SaaStup (Produits SaaS) de DigitalVision.
-// Stocké dans .cockpit/saas.json.
+// Stocké dans Neon Postgres (collection 'saas').
 
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-import { dossierCockpit } from './stockage-chemin'
+import { lireCollection, ecrireCollection } from './db'
 import type { SaasDV } from './dv-types'
-
-const dossier = dossierCockpit()
-const fichier = path.join(dossier, 'saas.json')
 
 function saasInitiaux(): SaasDV[] {
   const aujourdhui = new Date().toISOString()
@@ -71,28 +66,16 @@ function saasInitiaux(): SaasDV[] {
 
 export class MagasinSaas {
   private memoire: SaasDV[] | null = null
-  private ecriture: Promise<void> = Promise.resolve()
 
   private async lire(): Promise<SaasDV[]> {
     if (this.memoire) return this.memoire
-    try {
-      this.memoire = JSON.parse(await fs.readFile(fichier, 'utf8')) as SaasDV[]
-    } catch {
-      this.memoire = saasInitiaux()
-      await this.sauvegarder(this.memoire)
-    }
+    this.memoire = await lireCollection<SaasDV[]>('saas', saasInitiaux())
     return this.memoire
   }
 
   private async sauvegarder(donnees: SaasDV[]) {
     this.memoire = donnees
-    this.ecriture = this.ecriture.then(async () => {
-      await fs.mkdir(dossier, { recursive: true })
-      const tmp = `${fichier}.${process.pid}.tmp`
-      await fs.writeFile(tmp, JSON.stringify(donnees, null, 2) + '\n', 'utf8')
-      await fs.rename(tmp, fichier)
-    })
-    await this.ecriture
+    await ecrireCollection<SaasDV[]>('saas', donnees)
   }
 
   async lister(): Promise<SaasDV[]> {
@@ -142,4 +125,3 @@ export class MagasinSaas {
 }
 
 export const magasinSaas = new MagasinSaas()
-
