@@ -7,10 +7,11 @@ import type {
   ActiviteDV,
   ContratDV,
   DepenseDV,
+  OptionsCreationContrat,
   SaasDV,
   TacheDV,
 } from "@/server/dv-types";
-import type { Tableau } from "@/server/types";
+import type { CodeTva, Tableau } from "@/server/types";
 
 export type Toast = {
   id: number;
@@ -66,9 +67,15 @@ type CockpitState = {
   // Contrats
   contrats: ContratDV[];
   chargerContrats: () => Promise<void>;
-  ajouterContrat: (c: Omit<ContratDV, "id" | "creeLe">) => Promise<ContratDV | null>;
+  ajouterContrat: (
+    c: Omit<ContratDV, "id" | "creeLe"> & OptionsCreationContrat,
+  ) => Promise<ContratDV | null>;
   modifierContrat: (id: string, modifs: Partial<ContratDV>) => Promise<void>;
   supprimerContrat: (id: string) => Promise<void>;
+  facturerContrat: (
+    id: string,
+    facture: { libelle?: string; montantHT: number; tva?: CodeTva; echeanceJours?: number },
+  ) => Promise<number | null>;
 
   // Suivi factures
   suivis: number[];
@@ -357,7 +364,12 @@ export const useCockpit = create<CockpitState>((set, get) => ({
         titre: `Contrat enregistré`,
         texte: `${nouv.titre} pour ${nouv.nomEntreprise}`,
       });
-      await get().chargerActivites();
+      // Recharger tâches, CRM et factures qui ont pu être générées automatiquement
+      await Promise.all([
+        get().chargerActivites(),
+        get().chargerTaches(),
+        get().charger(true),
+      ]);
       return nouv;
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur contrat", texte: (e as Error).message });
@@ -371,7 +383,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
       set((state) => ({
         contrats: state.contrats.map((c) => (c.id === id ? maj : c)),
       }));
-      await get().chargerActivites();
+      await Promise.all([
+        get().chargerActivites(),
+        get().chargerTaches(),
+        get().charger(true),
+      ]);
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur", texte: (e as Error).message });
     }
@@ -384,6 +400,26 @@ export const useCockpit = create<CockpitState>((set, get) => ({
       get().toast({ ton: "info", titre: "Contrat supprimé" });
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur", texte: (e as Error).message });
+    }
+  },
+
+  async facturerContrat(id, facture) {
+    try {
+      const res = await api.facturerContrat(id, facture);
+      get().toast({
+        ton: "succes",
+        titre: "Facture contrat créée",
+        texte: `Brouillon de facture #${res.id} prêt à finaliser dans le module Finances.`,
+      });
+      await Promise.all([
+        get().chargerContrats(),
+        get().charger(true),
+        get().chargerActivites(),
+      ]);
+      return res.id;
+    } catch (e) {
+      get().toast({ ton: "erreur", titre: "Erreur facturation", texte: (e as Error).message });
+      return null;
     }
   },
 

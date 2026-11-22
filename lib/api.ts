@@ -3,6 +3,7 @@ import type {
   ActiviteDV,
   ContratDV,
   DepenseDV,
+  OptionsCreationContrat,
   SaasDV,
   TacheDV,
 } from "@/server/dv-types";
@@ -17,7 +18,7 @@ import type {
   ReunionDV,
   VisionStrategique,
 } from "@/server/hub-types";
-import type { NouvelleFacture, Tableau } from "@/server/types";
+import type { CodeTva, NouvelleFacture, Tableau } from "@/server/types";
 
 function getAuteur(): string {
   if (typeof window !== "undefined") {
@@ -89,9 +90,16 @@ export const api = {
 
   // Contrats
   contrats: () => appel<ContratDV[]>("/api/contrats"),
-  ajouterContrat: (c: Omit<ContratDV, "id" | "creeLe">) => poster<ContratDV>("/api/contrats", c),
-  modifierContrat: (id: string, modifs: Partial<ContratDV>) => modifier<ContratDV>(`/api/contrats/${id}`, modifs),
+  obtenirContrat: (id: string) => appel<ContratDV>(`/api/contrats/${id}`),
+  ajouterContrat: (c: Omit<ContratDV, "id" | "creeLe"> & OptionsCreationContrat) =>
+    poster<ContratDV>("/api/contrats", c),
+  modifierContrat: (id: string, modifs: Partial<ContratDV>) =>
+    modifier<ContratDV>(`/api/contrats/${id}`, modifs),
   supprimerContrat: (id: string) => supprimer<{ ok: true }>(`/api/contrats/${id}`),
+  facturerContrat: (
+    id: string,
+    facture: { libelle?: string; montantHT: number; tva?: CodeTva; echeanceJours?: number },
+  ) => poster<{ id: number }>(`/api/contrats/${id}/facturer`, facture),
 
   // Hub DigitalVision (Espace Entreprise)
   hub: {

@@ -7,9 +7,9 @@ import Tag from "@/components/_ui/tag";
 import { ScrollArea } from "@/components/_ui/scroll-area";
 import PageHeader from "@/components/_common/page-header";
 import NouveauSaasDialog from "@/components/saas/nouveau-saas-dialog";
-import NouveauContratDialog from "@/components/saas/nouveau-contrat-dialog";
+import NouveauContratDialog from "@/components/contrats/nouveau-contrat-dialog";
 import SaasDetailDialog from "@/components/saas/saas-detail-dialog";
-import ContratDetailDialog from "@/components/saas/contrat-detail-dialog";
+import ContratDetailDialog from "@/components/contrats/contrat-detail-dialog";
 import { useCockpit } from "@/stores/cockpit-store";
 import { euros } from "@/lib/format";
 import type {

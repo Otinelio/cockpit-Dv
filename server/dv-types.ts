@@ -38,6 +38,8 @@ export interface TacheDV {
   entrepriseId?: string
   nomEntreprise?: string
   saasId?: string
+  contratId?: string
+  prestationId?: string
   creeeLe: string
   termineeLe?: string
 }
@@ -110,11 +112,23 @@ export interface SaasDV {
 export type TypeContratDV = 'creation_site' | 'app_mobile' | 'logiciel' | 'maintenance' | 'conseil'
 export type StatutContratDV = 'brouillon' | 'en_attente' | 'actif' | 'termine' | 'resilie'
 
+export type ModeFacturationContrat = 'aucun' | 'integral' | 'acompte_50' | 'acompte_30' | 'sur_mesure'
+
+export interface OptionsCreationContrat {
+  genererTaches?: boolean
+  modeFacturation?: ModeFacturationContrat
+  pourcentageAcompte?: number
+  montantAcompteFCFA?: number
+}
+
 export interface PrestationContratDV {
   id: string
   type: TypeContratDV
   libellePersonnalise?: string
   montantFCFA: number
+  responsable?: string
+  echeancePrestation?: string
+  tacheIdLiee?: string
 }
 
 export interface ContratDV {
@@ -131,6 +145,10 @@ export interface ContratDV {
   statut: StatutContratDV
   responsable: string
   notes?: string
+  mentionsLegales?: string
+  modalitesPaiement?: string
+  factureIds?: number[]
+  tacheIds?: string[]
   creeLe: string
   estSigne?: boolean
   estLivre?: boolean

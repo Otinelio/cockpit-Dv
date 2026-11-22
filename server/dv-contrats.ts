@@ -39,6 +39,11 @@ export class MagasinContrats {
     return this.lire()
   }
 
+  async obtenir(id: string): Promise<ContratDV | null> {
+    const list = await this.lire()
+    return list.find((c) => c.id === id) ?? null
+  }
+
   async ajouter(contrat: Omit<ContratDV, 'id' | 'creeLe'>): Promise<ContratDV> {
     const list = await this.lire()
     const nouvel: ContratDV = {

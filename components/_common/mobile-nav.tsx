@@ -6,8 +6,8 @@ import { useCockpit } from "@/stores/cockpit-store";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  Layers,
   Building2,
+  FileCheck,
   Wallet,
   CheckSquare,
   Briefcase,
@@ -16,9 +16,10 @@ import {
 export default function MobileNav() {
   const pathname = usePathname();
   const taches = useCockpit((s) => s.taches);
-  const saas = useCockpit((s) => s.saas);
+  const contrats = useCockpit((s) => s.contrats);
 
   const tachesEnAttente = taches.filter((t) => t.statut !== "terminee").length;
+  const contratsActifs = contrats.filter((c) => c.statut === "actif").length;
 
   const ONGLETS = [
     {
@@ -34,17 +35,17 @@ export default function MobileNav() {
       actif: pathname.startsWith("/hub"),
     },
     {
-      href: "/saas",
-      label: "SaaStup",
-      icon: Layers,
-      count: saas.length > 0 ? saas.length : undefined,
-      actif: pathname.startsWith("/saas"),
-    },
-    {
       href: "/entreprises",
       label: "CRM",
       icon: Building2,
       actif: pathname.startsWith("/entreprises"),
+    },
+    {
+      href: "/contrats",
+      label: "Contrats",
+      icon: FileCheck,
+      count: contratsActifs > 0 ? contratsActifs : undefined,
+      actif: pathname.startsWith("/contrats"),
     },
     {
       href: "/factures",

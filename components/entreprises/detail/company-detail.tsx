@@ -30,7 +30,9 @@ import DetailSection from "./detail-section";
 import PipelineHealth from "./pipeline-health";
 import ActivityTrend from "./activity-trend";
 import PennylaneSection from "./pennylane-section";
-import NouveauContratDialog from "@/components/saas/nouveau-contrat-dialog";
+import NouveauContratDialog from "@/components/contrats/nouveau-contrat-dialog";
+import ContratDetailDialog from "@/components/contrats/contrat-detail-dialog";
+import type { ContratDV } from "@/server/dv-types";
 import { etiquettes } from "@/lib/cockpit";
 import { aujourdhui, euros } from "@/lib/format";
 import {
@@ -125,6 +127,7 @@ export default function CompanyDetail() {
   const chargerContrats = useCockpit((state) => state.chargerContrats);
 
   const [modalContratClient, setModalContratClient] = useState(false);
+  const [contratDetailSelect, setContratDetailSelect] = useState<ContratDV | null>(null);
   const [formTacheOuvert, setFormTacheOuvert] = useState(false);
   const [titreTacheClient, setTitreTacheClient] = useState("");
   const [assigneTacheClient, setAssigneTacheClient] = useState("Othnelio");
@@ -687,10 +690,11 @@ export default function CompanyDetail() {
                     {contratsClient.map((c) => (
                       <div
                         key={c.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 text-xs hover:bg-secondary/30 transition-colors"
+                        onClick={() => setContratDetailSelect(c)}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 text-xs hover:bg-secondary/40 transition-colors cursor-pointer group"
                       >
                         <div className="flex flex-col">
-                          <span className="font-semibold text-foreground">{c.titre}</span>
+                          <span className="font-semibold text-foreground group-hover:text-primary transition-colors">{c.titre}</span>
                           <span className="text-subtle text-[11px]">
                             Début le {c.debutLe.split("-").reverse().join("/")} • Resp : {c.responsable}
                           </span>
@@ -761,6 +765,13 @@ export default function CompanyDetail() {
         onOpenChange={setModalContratClient}
         entrepriseIdParDefaut={company.id}
         nomEntrepriseParDefaut={company.nom}
+      />
+
+      {/* Détail d'un contrat cliqué */}
+      <ContratDetailDialog
+        contrat={contratDetailSelect}
+        open={contratDetailSelect !== null}
+        onOpenChange={(open) => !open && setContratDetailSelect(null)}
       />
     </>
   );

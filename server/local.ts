@@ -23,6 +23,7 @@ interface FactureLocale {
   date: string | null
   echeance: string | null
   payeeLe: string | null
+  contratId?: string
 }
 
 interface Fichier {
@@ -67,6 +68,7 @@ function versPL(f: FactureLocale): PLCustomerInvoice {
     remaining_amount_with_tax: f.payeeLe ? '0' : String(ttc),
     public_file_url: brouillon ? null : `/api/factures/${f.id}/pdf`,
     customer: { id: f.clientId, url: '' },
+    contratId: f.contratId,
   }
 }
 
@@ -154,6 +156,7 @@ export function sourceLocale(crm: MagasinCrm): SourceLocale {
         date: null,
         echeance: null,
         payeeLe: null,
+        contratId: n.contratId,
       }
       await ecrire({ prochainId: f.prochainId + 1, factures: [...f.factures, facture] })
       return versPL(facture)

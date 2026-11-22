@@ -18,7 +18,7 @@ import BuildingIcon from "@/public/assets/images/companies/sidebar/building.svg"
 import BarChartIcon from "@/public/assets/images/companies/sidebar/bar-chart-10.svg";
 import ListIcon from "@/public/assets/images/companies/sidebar/list.svg";
 import WalletIcon from "@/public/assets/images/companies/sidebar/wallet.svg";
-import { Briefcase, Layers, X } from "lucide-react";
+import { Briefcase, FileCheck, Layers, X } from "lucide-react";
 import PwaInstallBanner from "@/components/_common/pwa-install-banner";
 
 const LIENS: { href: string; label: string; icon: ComponentType<{ className?: string }> }[] = [
@@ -26,6 +26,7 @@ const LIENS: { href: string; label: string; icon: ComponentType<{ className?: st
   { href: "/hub", label: "DigitalVision Hub", icon: Briefcase },
   { href: "/saas", label: "SaaStup & Lab", icon: Layers },
   { href: "/entreprises", label: "CRM", icon: BuildingIcon },
+  { href: "/contrats", label: "Contrats", icon: FileCheck },
   { href: "/factures", label: "Finances & Factures", icon: WalletIcon },
   { href: "/taches", label: "Tâches", icon: ListIcon },
 ];
@@ -45,6 +46,7 @@ export default function SidebarContent() {
   const filtres = useCockpit((state) => state.filtres);
   const taches = useCockpit((state) => state.taches);
   const saas = useCockpit((state) => state.saas);
+  const contrats = useCockpit((state) => state.contrats);
 
   const dernierPathname = useRef(pathname);
   useEffect(() => {
@@ -61,6 +63,7 @@ export default function SidebarContent() {
   const counts: Record<string, number | undefined> = {
     "/saas": saas.length > 0 ? saas.length : undefined,
     "/entreprises": crm ? entreprises.length : undefined,
+    "/contrats": contrats.length > 0 ? contrats.filter((c) => c.statut === "actif").length || contrats.length : undefined,
     "/factures": tableau && retards > 0 ? retards : undefined,
     "/taches": taches.filter((t) => t.statut !== "terminee").length,
   };

@@ -19,7 +19,7 @@ import { magasinDepenses } from './dv-depenses'
 import { magasinSaas } from './dv-saas'
 import { magasinContrats } from './dv-contrats'
 import { hubService } from './hub-service'
-import type { ActiviteDV, ContratDV, DepenseDV, SaasDV, TacheDV } from './dv-types'
+import type { ActiviteDV, ContratDV, DepenseDV, ModeFacturationContrat, SaasDV, TacheDV } from './dv-types'
 import type { CategorieCoffre, IdentiteEntreprise, ReunionDV, VisionStrategique } from './hub-types'
 
 const TVA: CodeTva[] = ['FR_200', 'FR_100', 'FR_55', 'TG_180', 'exempt']
@@ -108,11 +108,12 @@ function valider(b: unknown): NouvelleFacture {
   const montantHT = Number(r.montantHT)
   const tva = r.tva as CodeTva
   const echeanceJours = Number(r.echeanceJours ?? 30)
+  const contratId = r.contratId ? String(r.contratId) : undefined
   if (!clientId) throw new ErreurHttp(400, 'Client obligatoire')
   if (!libelle) throw new ErreurHttp(400, 'Libellé obligatoire')
   if (!montantHT || montantHT <= 0) throw new ErreurHttp(400, 'Montant HT positif obligatoire')
   if (!TVA.includes(tva)) throw new ErreurHttp(400, `TVA inconnue : ${tva}`)
-  return { clientId, libelle, montantHT, tva, echeanceJours }
+  return { clientId, libelle, montantHT, tva, echeanceJours, contratId }
 }
 
 async function tableau(e: Etat, frais: boolean) {
@@ -339,14 +340,22 @@ async function router(req: Request): Promise<Response> {
     return json(200, await magasinContrats.lister())
   }
   if (methode === 'POST' && chemin === '/api/contrats') {
-    const b = (await lireJson(req)) as Partial<ContratDV>
+    const b = (await lireJson(req)) as Partial<ContratDV> & {
+      genererTaches?: boolean
+      modeFacturation?: ModeFacturationContrat
+      pourcentageAcompte?: number
+      montantAcompteFCFA?: number
+    }
     if (!b.titre || !b.nomEntreprise) throw new ErreurHttp(400, 'Titre et entreprise requis')
+
+    const prestationsInitiales = Array.isArray(b.prestations) ? b.prestations : []
+
     const contrat = await magasinContrats.ajouter({
       entrepriseId: String(b.entrepriseId ?? ''),
       nomEntreprise: String(b.nomEntreprise).trim(),
       titre: String(b.titre).trim(),
       type: b.type ?? 'creation_site',
-      prestations: Array.isArray(b.prestations) ? b.prestations : undefined,
+      prestations: prestationsInitiales,
       montantFCFA: Number(b.montantFCFA ?? 0),
       signeLe: b.signeLe ? String(b.signeLe) : undefined,
       debutLe: b.debutLe ?? new Date().toISOString().slice(0, 10),
@@ -354,6 +363,10 @@ async function router(req: Request): Promise<Response> {
       statut: b.statut ?? 'brouillon',
       responsable: b.responsable ?? auteur,
       notes: b.notes ? String(b.notes) : undefined,
+      mentionsLegales: b.mentionsLegales ? String(b.mentionsLegales) : undefined,
+      modalitesPaiement: b.modalitesPaiement ? String(b.modalitesPaiement) : undefined,
+      factureIds: [],
+      tacheIds: [],
       estSigne: b.estSigne ?? false,
       estLivre: b.estLivre ?? false,
       livreLe: b.livreLe ? String(b.livreLe) : undefined,
@@ -361,18 +374,186 @@ async function router(req: Request): Promise<Response> {
       montantPayeFCFA: b.montantPayeFCFA !== undefined ? Number(b.montantPayeFCFA) : undefined,
       payeLe: b.payeLe ? String(b.payeLe) : undefined,
     })
+
+    const tacheIdsCreees: string[] = []
+    const prestationsMisesAJour = [...(contrat.prestations ?? [])]
+
+    // 1. Automatisation TÂCHES : chaque prestation devient une tâche
+    if (b.genererTaches !== false && prestationsMisesAJour.length > 0) {
+      for (let i = 0; i < prestationsMisesAJour.length; i++) {
+        const p = prestationsMisesAJour[i]
+        const libellePresta = p.libellePersonnalise || p.type
+        const respPresta = p.responsable || contrat.responsable
+        const echeancePresta = p.echeancePrestation || contrat.finLe || contrat.debutLe
+
+        const tache = await magasinTaches.ajouter({
+          titre: `${libellePresta} — ${contrat.nomEntreprise}`,
+          description: `Livrable du contrat "${contrat.titre}". Prestation valorisée à ${p.montantFCFA.toLocaleString('fr-FR')} FCFA.`,
+          type: 'dev_client',
+          assigneA: respPresta,
+          creePar: auteur,
+          statut: 'a_faire',
+          priorite: 'haute',
+          echeance: echeancePresta,
+          entrepriseId: contrat.entrepriseId || undefined,
+          nomEntreprise: contrat.nomEntreprise,
+          contratId: contrat.id,
+          prestationId: p.id,
+        })
+        tacheIdsCreees.push(tache.id)
+        prestationsMisesAJour[i] = { ...p, tacheIdLiee: tache.id }
+      }
+    }
+
+    // 2. Automatisation FACTURATION : créer une facture pour l'acompte ou la totalité
+    const factureIdsCreees: number[] = []
+    if (b.modeFacturation && b.modeFacturation !== 'aucun' && contrat.montantFCFA > 0) {
+      let carnet = await crm.idsLocaux()
+      let clientCrm = carnet.entreprises.find(
+        (c) => c.id === contrat.entrepriseId || c.nom.toLowerCase() === contrat.nomEntreprise.toLowerCase()
+      )
+
+      if (!clientCrm && contrat.nomEntreprise) {
+        clientCrm = await crm.ajouter({
+          nom: contrat.nomEntreprise,
+          etape: 'Client',
+          responsable: contrat.responsable,
+          pipeline: contrat.montantFCFA,
+          chances: 100,
+        })
+        carnet = await crm.idsLocaux()
+        clientCrm = carnet.entreprises.find((c) => c.id === clientCrm?.id) ?? clientCrm
+      }
+
+      const clientId = clientCrm?.pennylaneId
+      if (clientId) {
+        let montantFactureHT = contrat.montantFCFA
+        let libelleFacture = `${contrat.titre} — Totalité`
+
+        if (b.modeFacturation === 'acompte_50') {
+          montantFactureHT = Math.round(contrat.montantFCFA * 0.5)
+          libelleFacture = `${contrat.titre} — Acompte 50%`
+        } else if (b.modeFacturation === 'acompte_30') {
+          montantFactureHT = Math.round(contrat.montantFCFA * 0.3)
+          libelleFacture = `${contrat.titre} — Acompte 30%`
+        } else if (b.modeFacturation === 'sur_mesure') {
+          montantFactureHT =
+            b.montantAcompteFCFA && b.montantAcompteFCFA > 0
+              ? b.montantAcompteFCFA
+              : Math.round(contrat.montantFCFA * ((b.pourcentageAcompte || 50) / 100))
+          const pct = Math.round((montantFactureHT / contrat.montantFCFA) * 100)
+          libelleFacture = `${contrat.titre} — Acompte ${pct}%`
+        }
+
+        const facture = await source.creerBrouillon({
+          clientId,
+          libelle: libelleFacture,
+          montantHT: montantFactureHT,
+          tva: 'TG_180',
+          echeanceJours: 15,
+          contratId: contrat.id,
+        })
+        factureIdsCreees.push(facture.id)
+        e.cache = null
+      }
+    }
+
+    // 3. Automatisation CRM : passer le prospect en 'Client' si le contrat est actif ou signé
+    if (contrat.statut === 'actif' || contrat.statut === 'termine' || contrat.estSigne) {
+      const carnet = await crm.lire()
+      const ent = carnet.entreprises.find(
+        (c) => c.id === contrat.entrepriseId || c.nom.toLowerCase() === contrat.nomEntreprise.toLowerCase()
+      )
+      if (ent && ent.etape !== 'Client') {
+        await crm.modifier(ent.id, {
+          etape: 'Client',
+          pipeline: Math.max(ent.pipeline, contrat.montantFCFA),
+          chances: 100,
+          dernierEchange: {
+            date: new Date().toISOString().slice(0, 10),
+            libelle: `Contrat signé : ${contrat.titre}`.slice(0, 40),
+          },
+        })
+      }
+    }
+
+    // Mettre à jour le contrat avec les liaisons générées
+    const contratFinal =
+      (await magasinContrats.modifier(contrat.id, {
+        prestations: prestationsMisesAJour,
+        tacheIds: tacheIdsCreees,
+        factureIds: factureIdsCreees,
+      })) || contrat
+
     await magasinActivite.enregistrer({
       auteur,
       type: 'contrat',
-      titre: `Nouveau contrat : ${contrat.titre}`,
-      details: `${contrat.nomEntreprise} • ${contrat.montantFCFA.toLocaleString('fr-FR')} FCFA`,
-      cibleId: contrat.id,
+      titre: `Nouveau contrat : ${contratFinal.titre}`,
+      details: `${contratFinal.nomEntreprise} • ${contratFinal.montantFCFA.toLocaleString('fr-FR')} FCFA${
+        tacheIdsCreees.length > 0 ? ` • ${tacheIdsCreees.length} tâche(s) générée(s)` : ''
+      }${factureIdsCreees.length > 0 ? ' • Facture générée' : ''}`,
+      cibleId: contratFinal.id,
     })
-    return json(201, contrat)
+    return json(201, contratFinal)
   }
+
+  const routeFacturerContrat = chemin.match(/^\/api\/contrats\/([a-z0-9-]+)\/facturer$/)
+  if (routeFacturerContrat && methode === 'POST') {
+    const id = routeFacturerContrat[1]
+    const contrat = await magasinContrats.obtenir(id)
+    if (!contrat) throw new ErreurHttp(404, 'Contrat introuvable')
+
+    const b = (await lireJson(req)) as {
+      libelle?: string
+      montantHT: number
+      tva?: CodeTva
+      echeanceJours?: number
+    }
+    if (!b.montantHT || b.montantHT <= 0) throw new ErreurHttp(400, 'Montant HT positif requis')
+
+    const carnet = await crm.idsLocaux()
+    const clientCrm = carnet.entreprises.find(
+      (c) => c.id === contrat.entrepriseId || c.nom.toLowerCase() === contrat.nomEntreprise.toLowerCase()
+    )
+    if (!clientCrm?.pennylaneId) throw new ErreurHttp(422, 'Client CRM sans numéro client local')
+
+    const libelle = b.libelle?.trim() || `${contrat.titre} — Solde`
+    const facture = await source.creerBrouillon({
+      clientId: clientCrm.pennylaneId,
+      libelle,
+      montantHT: Math.round(b.montantHT),
+      tva: b.tva ?? 'TG_180',
+      echeanceJours: b.echeanceJours ?? 15,
+      contratId: contrat.id,
+    })
+
+    const existants = contrat.factureIds ?? []
+    if (!existants.includes(facture.id)) {
+      await magasinContrats.modifier(contrat.id, {
+        factureIds: [...existants, facture.id],
+      })
+    }
+    e.cache = null
+
+    await magasinActivite.enregistrer({
+      auteur,
+      type: 'facture',
+      titre: `Facture contrat #${facture.id}`,
+      details: `${libelle} • ${Math.round(b.montantHT).toLocaleString('fr-FR')} FCFA HT`,
+      cibleId: facture.id,
+    })
+
+    return json(201, { id: facture.id })
+  }
+
   const routeContrat = chemin.match(/^\/api\/contrats\/([a-z0-9-]+)$/)
   if (routeContrat) {
     const id = routeContrat[1]
+    if (methode === 'GET') {
+      const c = await magasinContrats.obtenir(id)
+      if (!c) throw new ErreurHttp(404, 'Contrat introuvable')
+      return json(200, c)
+    }
     if (methode === 'PUT') {
       const modifs = (await lireJson(req)) as Partial<ContratDV>
       const c = await magasinContrats.modifier(id, modifs)

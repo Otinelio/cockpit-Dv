@@ -31,6 +31,7 @@ export interface PLCustomerInvoice {
   remaining_amount_with_tax: string | null
   public_file_url: string | null
   customer: Ref | null
+  contratId?: string
 }
 
 export interface PLCustomer {
@@ -75,6 +76,7 @@ export interface NouvelleFacture {
   montantHT: number
   tva: CodeTva
   echeanceJours: number
+  contratId?: string
 }
 
 // ---------- Ce que reçoit la page ----------
@@ -114,6 +116,7 @@ export interface LigneFacture {
   restant: number
   date: string | null
   echeance: string | null
+  contratId?: string
 }
 
 /** Un client et ce qu'il t'a rapporté : de quoi remplir sa fiche et la page Clients. */

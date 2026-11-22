@@ -167,6 +167,7 @@ export async function calculerTableau(source: Source, objectifAnnuel: number): P
       restant: f.status === 'paid' ? 0 : num(f.remaining_amount_with_tax),
       date: f.date,
       echeance: f.deadline,
+      contratId: f.contratId,
     }))
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || b.id - a.id)
 
