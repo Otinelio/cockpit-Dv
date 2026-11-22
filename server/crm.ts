@@ -86,23 +86,19 @@ function tendanceFactures(factures: PLCustomerInvoice[]): number[] {
 
 export function magasinCrm(mode: 'demo' | 'pennylane' | 'local') {
   const cle = mode === 'demo' ? 'crm_demo' : 'crm'
-  let memoire: Crm | null = null
 
   async function ecrire(crm: Crm) {
-    memoire = crm
     await ecrireCollection<Crm>(cle, crm)
   }
 
   async function lire(): Promise<Crm> {
-    if (memoire) return memoire
     const defaut: Crm =
       mode === 'demo'
         ? crmDemo()
         : mode === 'local'
           ? crmLocal()
           : { moi: 'Moi', equipe: [{ nom: 'Moi', role: 'Dirigeant', email: '', telephone: '', ton: 'purple' }], entreprises: [] }
-    memoire = await lireCollection<Crm>(cle, defaut)
-    return memoire
+    return lireCollection<Crm>(cle, defaut)
   }
 
   const trouver = (crm: Crm, id: string) => {

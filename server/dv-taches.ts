@@ -66,16 +66,11 @@ function tachesInitiales(): TacheDV[] {
 }
 
 export class MagasinTaches {
-  private memoire: TacheDV[] | null = null
-
   private async lire(): Promise<TacheDV[]> {
-    if (this.memoire) return this.memoire
-    this.memoire = await lireCollection<TacheDV[]>('taches', tachesInitiales())
-    return this.memoire
+    return lireCollection<TacheDV[]>('taches', tachesInitiales())
   }
 
   private async sauvegarder(donnees: TacheDV[]) {
-    this.memoire = donnees
     await ecrireCollection<TacheDV[]>('taches', donnees)
   }
 

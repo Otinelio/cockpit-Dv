@@ -44,16 +44,11 @@ function depensesInitiales(): DepenseDV[] {
 }
 
 export class MagasinDepenses {
-  private memoire: DepenseDV[] | null = null
-
   private async lire(): Promise<DepenseDV[]> {
-    if (this.memoire) return this.memoire
-    this.memoire = await lireCollection<DepenseDV[]>('depenses', depensesInitiales())
-    return this.memoire
+    return lireCollection<DepenseDV[]>('depenses', depensesInitiales())
   }
 
   private async sauvegarder(donnees: DepenseDV[]) {
-    this.memoire = donnees
     await ecrireCollection<DepenseDV[]>('depenses', donnees)
   }
 

@@ -15,6 +15,7 @@ import Field from "@/components/_ui/field";
 import { Checkbox } from "@/components/_ui/checkbox";
 import { useCockpit } from "@/stores/cockpit-store";
 import { euros } from "@/lib/format";
+import { api } from "@/lib/api";
 import type {
   ModeFacturationContrat,
   PrestationContratDV,
@@ -27,9 +28,12 @@ import {
   FileText,
   Layers,
   ListTodo,
+  Paperclip,
   Plus,
   Sparkles,
   Trash2,
+  UploadCloud,
+  X,
 } from "lucide-react";
 
 const TYPES: { code: TypeContratDV; libelle: string }[] = [
@@ -110,6 +114,8 @@ export default function NouveauContratDialog({
   const [finLe, setFinLe] = useState("");
   const [statut, setStatut] = useState<StatutContratDV>("actif");
   const [responsable, setResponsable] = useState(utilisateurActif || "Othnelio");
+  const [tvaTaux, setTvaTaux] = useState<number>(0);
+  const [fichierDoc, setFichierDoc] = useState<File | null>(null);
   const [mentionsLegales, setMentionsLegales] = useState(
     "Modalités de règlement : 50% d'acompte à la commande, 50% à la livraison finale. Garantie de bon fonctionnement de 30 jours après recette.",
   );
@@ -178,6 +184,28 @@ export default function NouveauContratDialog({
 
     setChargement(true);
 
+    let documentId: string | undefined;
+    let documentNom: string | undefined;
+    let documentUrl: string | undefined;
+    let documentTailleOctets: number | undefined;
+
+    if (fichierDoc) {
+      try {
+        const doc = await api.hub.uploadFichier(
+          fichierDoc,
+          "dos-contrats",
+          `Contrat signé / convention ${nomFinal} - ${titre.trim()}`,
+          { clientCrmId: clientTrouve?.id },
+        );
+        documentId = doc.id;
+        documentNom = doc.nomOriginal;
+        documentUrl = `/api/hub/documents/fichiers/${doc.id}`;
+        documentTailleOctets = doc.tailleOctets;
+      } catch (err) {
+        console.error("Erreur lors de l'upload du document de contrat:", err);
+      }
+    }
+
     const prestationsFormatees: PrestationContratDV[] = prestations.map((p) => ({
       id: p.id,
       type: p.type,
@@ -196,6 +224,11 @@ export default function NouveauContratDialog({
       type: typePrincipal,
       prestations: prestationsFormatees,
       montantFCFA: montantTotalFCFA,
+      tvaTaux,
+      documentId,
+      documentNom,
+      documentUrl,
+      documentTailleOctets,
       debutLe,
       finLe: finLe || undefined,
       statut,
@@ -217,6 +250,8 @@ export default function NouveauContratDialog({
       setTitre("");
       setPrestations([PRESTATION_DEFAUT]);
       setNotes("");
+      setFichierDoc(null);
+      setTvaTaux(0);
     }
   }
 
@@ -470,14 +505,53 @@ export default function NouveauContratDialog({
               ))}
             </div>
 
-            {/* Total valorisation */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-card/60 border border-border">
-              <span className="text-xs font-semibold text-muted-foreground">
-                Montant total du contrat :
-              </span>
-              <span className="text-base font-bold text-trend font-mono">
-                {euros(montantTotalFCFA, true)}
-              </span>
+            {/* Total valorisation & TVA */}
+            <div className="space-y-3 p-3 rounded-lg bg-card/60 border border-border">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/40">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Régime TVA applicable :
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTvaTaux(0)}
+                    className={`px-2.5 py-1 rounded text-xs transition-colors font-medium ${
+                      tvaTaux === 0
+                        ? "bg-primary text-primary-foreground font-bold"
+                        : "bg-secondary text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Exonéré (0%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTvaTaux(18)}
+                    className={`px-2.5 py-1 rounded text-xs transition-colors font-medium ${
+                      tvaTaux === 18
+                        ? "bg-primary text-primary-foreground font-bold"
+                        : "bg-secondary text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    TVA Togo (18%)
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground block">
+                    Montant total contrat HT :
+                  </span>
+                  {tvaTaux > 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      TTC : {euros(Math.round(montantTotalFCFA * 1.18), true)} (TVA 18% : {euros(Math.round(montantTotalFCFA * 0.18), true)})
+                    </span>
+                  )}
+                </div>
+                <span className="text-base font-bold text-trend font-mono">
+                  {euros(montantTotalFCFA, true)} HT
+                </span>
+              </div>
             </div>
           </div>
 
@@ -650,6 +724,63 @@ export default function NouveauContratDialog({
                 placeholder="Contexte client, historique de négociation..."
               />
             </Field>
+          </div>
+
+          {/* 5. DOCUMENT OFFICIEL DU CONTRAT */}
+          <div className="space-y-3 rounded-xl border border-border bg-[#161616] p-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Paperclip className="size-3.5 text-primary" />
+              5. Document officiel / Scan du contrat (optionnel)
+            </span>
+            <p className="text-[11px] text-muted-foreground">
+              Le fichier sera stocké dans Neon S3 et automatiquement indexé dans le Hub DigitalVision (dossier &quot;Contrats &amp; Conventions&quot;).
+            </p>
+
+            {fichierDoc ? (
+              <div className="flex items-center justify-between p-3 rounded-lg border border-primary/40 bg-primary/10">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Paperclip className="size-4 text-primary shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{fichierDoc.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {(fichierDoc.size / 1024).toFixed(1)} Ko • Prêt pour archivage Hub
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setFichierDoc(null)}
+                  className="text-muted-foreground hover:text-red-400 size-6"
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <label
+                htmlFor="upload-contrat-file"
+                className="flex flex-col items-center justify-center p-4 rounded-lg border border-dashed border-border hover:border-primary/50 bg-secondary/30 hover:bg-secondary/60 cursor-pointer transition-colors group"
+              >
+                <UploadCloud className="size-6 text-muted-foreground group-hover:text-primary mb-1.5 transition-colors" />
+                <span className="text-xs font-medium text-foreground">
+                  Cliquer pour joindre le contrat (PDF, DOCX, scan...)
+                </span>
+                <span className="text-[10px] text-muted-foreground mt-0.5">
+                  Taille max recommandée : 20 Mo
+                </span>
+                <input
+                  id="upload-contrat-file"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) setFichierDoc(f);
+                  }}
+                />
+              </label>
+            )}
           </div>
 
           <DialogFooter className="gap-2 pt-2">

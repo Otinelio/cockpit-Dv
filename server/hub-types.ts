@@ -197,4 +197,5 @@ export interface DocumentDV {
   projetSaasId?: string
   clientCrmId?: string
   reunionId?: string
+  contratId?: string
 }

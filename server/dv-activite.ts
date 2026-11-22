@@ -6,16 +6,11 @@ import { lireCollection, ecrireCollection } from './db'
 import type { ActiviteDV } from './dv-types'
 
 export class MagasinActivite {
-  private memoire: ActiviteDV[] | null = null
-
   private async lire(): Promise<ActiviteDV[]> {
-    if (this.memoire) return this.memoire
-    this.memoire = await lireCollection<ActiviteDV[]>('activite', [])
-    return this.memoire
+    return lireCollection<ActiviteDV[]>('activite', [])
   }
 
   private async sauvegarder(donnees: ActiviteDV[]) {
-    this.memoire = donnees
     await ecrireCollection<ActiviteDV[]>('activite', donnees)
   }
 

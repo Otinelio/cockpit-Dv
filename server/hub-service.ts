@@ -70,18 +70,10 @@ async function ecrireFichierAtomique(chemin: string, donnees: unknown) {
 }
 
 export class HubService {
-  private memoireEntreprise: IdentiteEntreprise | null = null
-  private memoireCoffre: FichierCoffreStockage | null = null
-  private memoireStrategie: VisionStrategique | null = null
-  private memoireAssocies: AssocieDV[] | null = null
-  private memoireReunions: ReunionDV[] | null = null
-  private memoireDocuments: { dossiers: DossierDV[]; documents: DocumentDV[] } | null = null
-
   // ==========================================
   // 1. IDENTITÉ DE L'ENTREPRISE
   // ==========================================
   async obtenirIdentite(): Promise<IdentiteEntreprise> {
-    if (this.memoireEntreprise) return this.memoireEntreprise
     const defaut: IdentiteEntreprise = {
       nomCommercial: ENTREPRISE.nom || 'DigitalVision',
       slogan: 'Ingénierie logicielle & Solutions numériques souveraines',
@@ -115,40 +107,37 @@ export class HubService {
       modifieLe: new Date().toISOString(),
       modifiePar: 'Système',
     }
-    this.memoireEntreprise = await lireCollection<IdentiteEntreprise>('entreprise', defaut)
-    return this.memoireEntreprise
+    return lireCollection<IdentiteEntreprise>('entreprise', defaut)
   }
 
   async mettreAJourIdentite(modifs: Partial<IdentiteEntreprise>, auteur: string): Promise<IdentiteEntreprise> {
     const courante = await this.obtenirIdentite()
-    this.memoireEntreprise = {
+    const maj = {
       ...courante,
       ...modifs,
       modifieLe: new Date().toISOString(),
       modifiePar: auteur,
     }
-    await ecrireFichierAtomique(fichierEntreprise, this.memoireEntreprise)
+    await ecrireFichierAtomique(fichierEntreprise, maj)
     await magasinActivite.enregistrer({
       auteur,
       type: 'client',
       titre: `Identité DigitalVision mise à jour`,
       details: `Modifications enregistrées par ${auteur}`,
     })
-    return this.memoireEntreprise
+    return maj
   }
 
   // ==========================================
   // 2. COFFRE-FORT NUMÉRIQUE (AES-256-GCM)
   // ==========================================
   private async chargerCoffre(): Promise<FichierCoffreStockage> {
-    if (this.memoireCoffre) return this.memoireCoffre
     const defaut: FichierCoffreStockage = {
       selMaitre: randomBytes(16).toString('hex'),
       entrees: [],
       audits: [],
     }
-    this.memoireCoffre = await lireCollection<FichierCoffreStockage>('coffre', defaut)
-    return this.memoireCoffre
+    return lireCollection<FichierCoffreStockage>('coffre', defaut)
   }
 
   async listerCoffre(): Promise<{ entrees: EntreeCoffreVue[]; audits: AuditAccesCoffre[] }> {
@@ -347,7 +336,6 @@ export class HubService {
   // 3. VISION ET STRATÉGIE
   // ==========================================
   async obtenirStrategie(): Promise<VisionStrategique> {
-    if (this.memoireStrategie) return this.memoireStrategie
     const defaut: VisionStrategique = {
       horizon: '2026 - 2030',
       ambitions: [
@@ -423,32 +411,30 @@ export class HubService {
       ],
       misAJourLe: new Date().toISOString(),
     }
-    this.memoireStrategie = await lireCollection<VisionStrategique>('strategie', defaut)
-    return this.memoireStrategie
+    return lireCollection<VisionStrategique>('strategie', defaut)
   }
 
   async mettreAJourStrategie(strategie: Partial<VisionStrategique>, auteur: string): Promise<VisionStrategique> {
     const s = await this.obtenirStrategie()
-    this.memoireStrategie = {
+    const maj = {
       ...s,
       ...strategie,
       misAJourLe: new Date().toISOString(),
     }
-    await ecrireFichierAtomique(fichierStrategie, this.memoireStrategie)
+    await ecrireFichierAtomique(fichierStrategie, maj)
     await magasinActivite.enregistrer({
       auteur,
       type: 'tache',
       titre: `Mise à jour de la vision stratégique`,
       details: `Modifié par ${auteur}`,
     })
-    return this.memoireStrategie
+    return maj
   }
 
   // ==========================================
   // 4. ASSOCIÉS ET GOUVERNANCE
   // ==========================================
   async obtenirAssocies(): Promise<AssocieDV[]> {
-    if (this.memoireAssocies) return this.memoireAssocies
     const defaut: AssocieDV[] = [
       {
         id: 'associe-othnelio',
@@ -514,8 +500,7 @@ export class HubService {
         ordre: 3,
       },
     ]
-    this.memoireAssocies = await lireCollection<AssocieDV[]>('associes', defaut)
-    return this.memoireAssocies
+    return lireCollection<AssocieDV[]>('associes', defaut)
   }
 
   async mettreAJourAssocie(id: string, modifs: Partial<AssocieDV>, auteur: string): Promise<AssocieDV | null> {
@@ -523,7 +508,6 @@ export class HubService {
     const index = associes.findIndex((a) => a.id === id || a.nom.toLowerCase() === id.toLowerCase())
     if (index === -1) return null
     associes[index] = { ...associes[index], ...modifs }
-    this.memoireAssocies = associes
     await ecrireFichierAtomique(fichierAssocies, associes)
     await magasinActivite.enregistrer({
       auteur,
@@ -538,7 +522,6 @@ export class HubService {
   // 5. RÉUNIONS ET DÉCISIONS
   // ==========================================
   async obtenirReunions(): Promise<ReunionDV[]> {
-    if (this.memoireReunions) return this.memoireReunions
     const defaut: ReunionDV[] = [
       {
         id: 'reunion-init',
@@ -574,8 +557,7 @@ export class HubService {
         creeLe: new Date().toISOString(),
       },
     ]
-    this.memoireReunions = await lireCollection<ReunionDV[]>('reunions', defaut)
-    return this.memoireReunions
+    return lireCollection<ReunionDV[]>('reunions', defaut)
   }
 
   async ajouterReunion(
@@ -590,7 +572,6 @@ export class HubService {
       creePar: auteur,
     }
     meetings.unshift(nouvelle)
-    this.memoireReunions = meetings
     await ecrireFichierAtomique(fichierReunions, meetings)
     await magasinActivite.enregistrer({
       auteur,
@@ -607,7 +588,6 @@ export class HubService {
     const index = meetings.findIndex((r) => r.id === id)
     if (index === -1) return null
     meetings[index] = { ...meetings[index], ...modifs }
-    this.memoireReunions = meetings
     await ecrireFichierAtomique(fichierReunions, meetings)
     await magasinActivite.enregistrer({
       auteur,
@@ -623,7 +603,6 @@ export class HubService {
     const index = meetings.findIndex((r) => r.id === id)
     if (index === -1) return false
     meetings.splice(index, 1)
-    this.memoireReunions = meetings
     await ecrireFichierAtomique(fichierReunions, meetings)
     return true
   }
@@ -632,9 +611,9 @@ export class HubService {
   // 6. DOCUMENTS ET ARCHIVES
   // ==========================================
   private async chargerDocumentsData(): Promise<{ dossiers: DossierDV[]; documents: DocumentDV[] }> {
-    if (this.memoireDocuments) return this.memoireDocuments
     const defaut = {
       dossiers: [
+        { id: 'dos-contrats', nom: 'Contrats & Conventions', parentId: null, creeLe: new Date().toISOString() },
         { id: 'dos-admin', nom: 'Administratif', parentId: null, creeLe: new Date().toISOString() },
         { id: 'dos-identite', nom: 'Identité visuelle', parentId: null, creeLe: new Date().toISOString() },
         { id: 'dos-strat', nom: 'Stratégie', parentId: null, creeLe: new Date().toISOString() },
@@ -644,8 +623,17 @@ export class HubService {
       ],
       documents: [],
     }
-    this.memoireDocuments = await lireCollection<{ dossiers: DossierDV[]; documents: DocumentDV[] }>('documents', defaut)
-    return this.memoireDocuments
+    const data = await lireCollection<{ dossiers: DossierDV[]; documents: DocumentDV[] }>('documents', defaut)
+    // S'assurer que dos-contrats existe
+    if (!data.dossiers.some((d) => d.id === 'dos-contrats')) {
+      data.dossiers.unshift({
+        id: 'dos-contrats',
+        nom: 'Contrats & Conventions',
+        parentId: null,
+        creeLe: new Date().toISOString(),
+      })
+    }
+    return data
   }
 
   async obtenirDocuments(): Promise<{ dossiers: DossierDV[]; documents: DocumentDV[] }> {
@@ -695,7 +683,7 @@ export class HubService {
     dossierId: string,
     auteur: string,
     description?: string,
-    liaisons?: { projetSaasId?: string; clientCrmId?: string; reunionId?: string },
+    liaisons?: { projetSaasId?: string; clientCrmId?: string; reunionId?: string; contratId?: string },
   ): Promise<DocumentDV> {
     const data = await this.chargerDocumentsData()
     const id = `doc-${Date.now()}-${randomBytes(4).toString('hex')}`
@@ -720,6 +708,7 @@ export class HubService {
       projetSaasId: liaisons?.projetSaasId,
       clientCrmId: liaisons?.clientCrmId,
       reunionId: liaisons?.reunionId,
+      contratId: liaisons?.contratId,
     }
 
     data.documents.push(nouveau)

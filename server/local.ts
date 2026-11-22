@@ -4,6 +4,7 @@
 
 import { ENTREPRISE, TVA_TAUX } from '../data/entreprise'
 import { hubService } from './hub-service'
+import { magasinContrats } from './dv-contrats'
 import { lireCollection, ecrireCollection } from './db'
 import type { MagasinCrm } from './crm'
 import { genererPdf } from './pdf-facture'
@@ -32,6 +33,7 @@ interface Fichier {
 export type SourceLocale = Source & {
   pdf(id: number): Promise<{ octets: Uint8Array; nom: string }>
   marquerPayee(id: number): Promise<void>
+  modifier(id: number, modifs: { montantHT?: number; tva?: CodeTva; libelle?: string }): Promise<PLCustomerInvoice>
 }
 
 const TAUX: Partial<Record<CodeTva, number>> = { TG_180: TVA_TAUX, exempt: 0 }
@@ -71,16 +73,11 @@ function versPL(f: FactureLocale): PLCustomerInvoice {
 }
 
 export function sourceLocale(crm: MagasinCrm): SourceLocale {
-  let memoire: Fichier | null = null
-
   async function lire(): Promise<Fichier> {
-    if (memoire) return memoire
-    memoire = await lireCollection<Fichier>('factures', { prochainId: 1, factures: [] })
-    return memoire
+    return lireCollection<Fichier>('factures', { prochainId: 1, factures: [] })
   }
 
   async function ecrire(f: Fichier) {
-    memoire = f
     await ecrireCollection<Fichier>('factures', f)
   }
 
@@ -181,16 +178,41 @@ export function sourceLocale(crm: MagasinCrm): SourceLocale {
     async marquerPayee(id: number) {
       const f = await lire()
       const facture = trouver(f, id)
-      if (!facture.numero) throw erreur(409, 'Un brouillon ne peut pas être payé : finalise-le d’abord')
+      if (!facture.numero) {
+        // Validation automatique si on la marque directement comme payée
+        const date = aujourdhui()
+        const prefixe = `F-${date.slice(0, 4)}-`
+        const dernier = Math.max(
+          0,
+          ...f.factures.filter((x) => x.numero.startsWith(prefixe)).map((x) => Number(x.numero.slice(prefixe.length)) || 0),
+        )
+        facture.numero = prefixe + String(dernier + 1).padStart(4, '0')
+        facture.date = date
+        facture.echeance = plusJours(date, facture.echeanceJours)
+      }
       if (!facture.payeeLe) {
         facture.payeeLe = aujourdhui()
         await ecrire(f)
       }
     },
 
+    async modifier(id: number, modifs: { montantHT?: number; tva?: CodeTva; libelle?: string }) {
+      const f = await lire()
+      const facture = trouver(f, id)
+      if (modifs.montantHT !== undefined) facture.montantHT = Math.round(Number(modifs.montantHT) || 0)
+      if (modifs.tva !== undefined) {
+        const taux = TAUX[modifs.tva]
+        if (taux !== undefined) facture.tauxTva = taux
+      }
+      if (modifs.libelle !== undefined && modifs.libelle.trim()) {
+        facture.libelle = modifs.libelle.trim()
+      }
+      await ecrire(f)
+      return versPL(facture)
+    },
+
     async pdf(id: number) {
       const facture = trouver(await lire(), id)
-      if (!facture.numero) throw erreur(404, 'Ce brouillon n’a pas encore de PDF : finalise-le d’abord')
       const client = (await clients()).find((c) => c.id === facture.clientId)
       const ttc = ttcDe(facture)
       const identite = await hubService.obtenirIdentite().catch(() => null)
@@ -203,6 +225,19 @@ export function sourceLocale(crm: MagasinCrm): SourceLocale {
           ].filter(Boolean).join('\n')
         : ENTREPRISE.paiement
 
+      // Récupérer les clauses éventuelles du contrat lié
+      let mentionsFinales = identite?.coordonneesPaiement.mentions || ENTREPRISE.mentions
+      if (facture.contratId) {
+        const contrat = await magasinContrats.obtenir(facture.contratId).catch(() => null)
+        if (contrat?.mentionsLegales) {
+          mentionsFinales = `${mentionsFinales}\n\nClauses contractuelles :\n${contrat.mentionsLegales}`
+        }
+      }
+
+      const numAffiche = facture.numero || `PROFORMA-${facture.id}`
+      const dateAffichee = facture.date || aujourdhui()
+      const echeanceAffichee = facture.echeance || plusJours(dateAffichee, facture.echeanceJours || 30)
+
       const octets = await genererPdf({
         emetteur: {
           nom: identite?.nomCommercial || ENTREPRISE.nom,
@@ -213,11 +248,11 @@ export function sourceLocale(crm: MagasinCrm): SourceLocale {
           rccm: identite?.rccm || ENTREPRISE.rccm,
         },
         paiement: paiementStr,
-        mentions: identite?.coordonneesPaiement.mentions || ENTREPRISE.mentions,
+        mentions: mentionsFinales,
         facture: {
-          numero: facture.numero,
-          date: facture.date!,
-          echeance: facture.echeance!,
+          numero: numAffiche,
+          date: dateAffichee,
+          echeance: echeanceAffichee,
           libelle: facture.libelle,
           ht: facture.montantHT,
           taux: facture.tauxTva,
@@ -231,7 +266,7 @@ export function sourceLocale(crm: MagasinCrm): SourceLocale {
           email: client?.emails[0] ?? null,
         },
       })
-      return { octets, nom: facture.numero }
+      return { octets, nom: numAffiche }
     },
   }
 }

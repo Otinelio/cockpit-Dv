@@ -30,6 +30,7 @@ function getAuteur(): string {
 async function appel<T>(chemin: string, init?: RequestInit): Promise<T> {
   const auteur = getAuteur();
   const res = await fetch(chemin, {
+    cache: "no-store",
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -189,6 +190,7 @@ export const api = {
         projetSaasId?: string;
         clientCrmId?: string;
         reunionId?: string;
+        contratId?: string;
       },
     ) => {
       const formData = new FormData();
@@ -201,6 +203,8 @@ export const api = {
         formData.append("clientCrmId", liaisons.clientCrmId);
       if (liaisons?.reunionId)
         formData.append("reunionId", liaisons.reunionId);
+      if (liaisons?.contratId)
+        formData.append("contratId", liaisons.contratId);
 
       const auteur = getAuteur();
       const res = await fetch("/api/hub/documents/fichiers/upload", {
@@ -242,6 +246,8 @@ export const api = {
 
   // Factures
   creerBrouillon: (f: NouvelleFacture) => poster<{ id: number }>("/api/factures", f),
+  modifierFacture: (id: number, modifs: { montantHT?: number; tva?: CodeTva; libelle?: string }) =>
+    modifier<unknown>(`/api/factures/${id}`, modifs),
   finaliser: (id: number) =>
     poster<{ id: number; numero: string }>(`/api/factures/${id}/finaliser`),
   envoyer: (id: number) => poster<{ ok: true }>(`/api/factures/${id}/envoyer`),

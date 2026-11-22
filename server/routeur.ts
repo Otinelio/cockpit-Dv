@@ -385,6 +385,11 @@ async function router(req: Request): Promise<Response> {
       notes: b.notes ? String(b.notes) : undefined,
       mentionsLegales: b.mentionsLegales ? String(b.mentionsLegales) : undefined,
       modalitesPaiement: b.modalitesPaiement ? String(b.modalitesPaiement) : undefined,
+      tvaTaux: b.tvaTaux !== undefined ? Number(b.tvaTaux) : 0,
+      documentId: b.documentId ? String(b.documentId) : undefined,
+      documentNom: b.documentNom ? String(b.documentNom) : undefined,
+      documentUrl: b.documentUrl ? String(b.documentUrl) : undefined,
+      documentTailleOctets: b.documentTailleOctets !== undefined ? Number(b.documentTailleOctets) : undefined,
       factureIds: [],
       tacheIds: [],
       estSigne: b.estSigne ?? false,
@@ -465,11 +470,12 @@ async function router(req: Request): Promise<Response> {
           libelleFacture = `${contrat.titre} — Acompte ${pct}%`
         }
 
+        const codeTva: CodeTva = (b.tvaTaux === 0 || contrat.tvaTaux === 0) ? 'exempt' : 'TG_180'
         const facture = await source.creerBrouillon({
           clientId,
           libelle: libelleFacture,
           montantHT: montantFactureHT,
-          tva: 'TG_180',
+          tva: codeTva,
           echeanceJours: 15,
           contratId: contrat.id,
         })
@@ -741,6 +747,7 @@ async function router(req: Request): Promise<Response> {
     const projetSaasId = formData.get('projetSaasId') ? String(formData.get('projetSaasId')) : undefined
     const clientCrmId = formData.get('clientCrmId') ? String(formData.get('clientCrmId')) : undefined
     const reunionId = formData.get('reunionId') ? String(formData.get('reunionId')) : undefined
+    const contratId = formData.get('contratId') ? String(formData.get('contratId')) : undefined
 
     const buffer = Buffer.from(await fichier.arrayBuffer())
     const doc = await hubService.enregistrerFichierDocument(
@@ -750,7 +757,7 @@ async function router(req: Request): Promise<Response> {
       dossierId,
       auteur,
       description,
-      { projetSaasId, clientCrmId, reunionId },
+      { projetSaasId, clientCrmId, reunionId, contratId },
     )
     return json(201, doc)
   }
@@ -849,6 +856,23 @@ async function router(req: Request): Promise<Response> {
       cibleId: f.id,
     })
     return json(201, { id: f.id })
+  }
+
+  const routeModifFacture = chemin.match(/^\/api\/factures\/(\d+)$/)
+  if (routeModifFacture && methode === 'PUT') {
+    const id = Number(routeModifFacture[1])
+    if (!local) throw new ErreurHttp(400, 'Modification de facture supportée en mode local')
+    const corps = (await lireJson(req)) as { montantHT?: number; tva?: CodeTva; libelle?: string }
+    const f = await local.modifier(id, corps)
+    e.cache = null
+    await magasinActivite.enregistrer({
+      auteur,
+      type: 'facture',
+      titre: `Facture #${id} modifiée`,
+      details: `${f.label} • ${Number(f.amount).toLocaleString('fr-FR')} FCFA`,
+      cibleId: id,
+    })
+    return json(200, f)
   }
 
   const action = chemin.match(/^\/api\/factures\/(\d+)\/(finaliser|envoyer|pdf|paiement|payer)$/)

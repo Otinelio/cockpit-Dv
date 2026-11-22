@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import { Check, Copy, ExternalLink, FileText, Send, Stamp, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { Check, Copy, Download, Edit3, ExternalLink, FileText, Send, Stamp, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import Button from "@/components/_ui/button";
 import {
   DropdownMenu,
@@ -22,6 +22,7 @@ import Tag from "@/components/_ui/tag";
 import FilterMenu from "@/components/_common/filter-menu";
 import PageHeader from "@/components/_common/page-header";
 import DepensesTable from "@/components/factures/depenses-table";
+import DialogModifierFacture from "@/components/factures/dialog-modifier-facture";
 import { api } from "@/lib/api";
 import { STATUTS, enRetard, lignesCsvFactures } from "@/lib/factures";
 import { downloadCsv } from "@/lib/csv";
@@ -100,6 +101,7 @@ export default function Factures() {
   const [client, setClient] = useState("tous");
   const [periode, setPeriode] = useState("0");
   const [limite, setLimite] = useState<string | null>(null);
+  const [factureAModifier, setFactureAModifier] = useState<LigneFacture | null>(null);
 
   const tableau = useCockpit((state) => state.tableau);
   const factures = useCockpit((state) => state.tableau?.factures) ?? VIDE;
@@ -366,25 +368,70 @@ export default function Factures() {
                       <TableCell role="cell" className="flex items-center justify-end tabular-nums">
                         {f.statut === "payee" ? <span className="text-subtle">—</span> : euros(f.restant, true)}
                       </TableCell>
-                      <TableCell role="cell" className="flex items-center justify-center" onClick={stop}>
+                      <TableCell role="cell" className="flex items-center justify-end gap-1.5" onClick={stop}>
+                        {f.statut === "brouillon" ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => finaliser(f)}
+                            className="h-7 px-2.5 text-xs font-semibold gap-1 bg-trend hover:bg-trend/90 text-white shadow-sm"
+                            title="Valider définitivement et attribuer le numéro officiel"
+                          >
+                            <Stamp className="size-3" />
+                            Valider
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => window.open(api.urlPdf(f.id), "_blank", "noopener")}
+                            className="h-7 px-2 text-xs gap-1 border-border"
+                            title="Télécharger le PDF officiel"
+                          >
+                            <Download className="size-3" />
+                            PDF
+                          </Button>
+                        )}
+
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-sm" className="text-foreground data-[state=open]:bg-white/6" aria-label={`Actions de la facture ${f.numero || "brouillon"}`}>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-foreground data-[state=open]:bg-white/6 size-7"
+                              aria-label={`Actions de la facture ${f.numero || "brouillon"}`}
+                            >
                               <DotsIcon aria-hidden className="size-3" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             {f.statut === "brouillon" ? (
-                              <DropdownMenuItem onSelect={() => finaliser(f)}>
-                                <Stamp aria-hidden className="size-3.5" />
-                                Finaliser
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem onSelect={() => finaliser(f)}>
+                                  <Stamp aria-hidden className="size-3.5" />
+                                  Valider définitivement
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => window.open(api.urlPdf(f.id), "_blank", "noopener")}>
+                                  <FileText aria-hidden className="size-3.5" />
+                                  Voir le Proforma PDF
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setFactureAModifier(f)}>
+                                  <Edit3 aria-hidden className="size-3.5" />
+                                  Modifier la facture
+                                </DropdownMenuItem>
+                              </>
                             ) : (
                               <>
                                 <DropdownMenuItem onSelect={() => window.open(api.urlPdf(f.id), "_blank", "noopener")}>
                                   <FileText aria-hidden className="size-3.5" />
-                                  Voir le PDF
+                                  Télécharger le PDF
                                 </DropdownMenuItem>
+                                {f.statut !== "payee" && (
+                                  <DropdownMenuItem onSelect={() => setFactureAModifier(f)}>
+                                    <Edit3 aria-hidden className="size-3.5" />
+                                    Modifier montant / TVA
+                                  </DropdownMenuItem>
+                                )}
                                 {f.statut !== "payee" && local && (
                                   <DropdownMenuItem onSelect={() => payer(f)}>
                                     <Check aria-hidden className="size-3.5" />
@@ -446,6 +493,12 @@ export default function Factures() {
         </>
       )}
       <span className="sr-only">{pluriel(visibles.length, "facture")}</span>
+
+      <DialogModifierFacture
+        facture={factureAModifier}
+        open={Boolean(factureAModifier)}
+        onOpenChange={(open) => !open && setFactureAModifier(null)}
+      />
     </section>
   );
 }

@@ -65,16 +65,11 @@ function saasInitiaux(): SaasDV[] {
 }
 
 export class MagasinSaas {
-  private memoire: SaasDV[] | null = null
-
   private async lire(): Promise<SaasDV[]> {
-    if (this.memoire) return this.memoire
-    this.memoire = await lireCollection<SaasDV[]>('saas', saasInitiaux())
-    return this.memoire
+    return lireCollection<SaasDV[]>('saas', saasInitiaux())
   }
 
   private async sauvegarder(donnees: SaasDV[]) {
-    this.memoire = donnees
     await ecrireCollection<SaasDV[]>('saas', donnees)
   }
 

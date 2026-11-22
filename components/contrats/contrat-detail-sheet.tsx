@@ -23,9 +23,11 @@ import {
   Clock,
   Download,
   Edit3,
+  ExternalLink,
   FileCheck,
   FileText,
   ListTodo,
+  Paperclip,
   Plus,
   Receipt,
   Trash2,
@@ -192,18 +194,21 @@ function ContenuContratDetail({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-1.5">
               <Tag tone={statutInfo.tone} size="sm">
                 {statutInfo.label}
               </Tag>
-              <span className="text-xs text-muted-foreground">•</span>
-              <span className="text-xs text-muted-foreground">Pilote :</span>
-              <span className="text-xs font-semibold text-foreground">{contrat.responsable}</span>
-              <span className="text-xs text-muted-foreground">•</span>
-              <span className="text-xs text-muted-foreground">
-                Du {contrat.debutLe.split("-").reverse().join("/")}
-                {contrat.finLe ? ` au ${contrat.finLe.split("-").reverse().join("/")}` : ""}
-              </span>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/60 border border-border/80 text-[11px] text-muted-foreground">
+                <span className="text-muted-foreground/70">Pilote :</span>
+                <span className="font-semibold text-foreground">{contrat.responsable}</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/60 border border-border/80 text-[11px] text-muted-foreground">
+                <Clock className="size-3 text-muted-foreground/70" />
+                <span>
+                  {contrat.debutLe.split("-").reverse().join("/")}
+                  {contrat.finLe ? ` → ${contrat.finLe.split("-").reverse().join("/")}` : ""}
+                </span>
+              </div>
             </div>
           </SheetHeader>
 
@@ -457,6 +462,83 @@ function ContenuContratDetail({
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* SECTION DOC : DOCUMENT OFFICIEL & HUB */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Paperclip className="size-4 text-primary" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Document officiel &amp; Convention
+                  </h3>
+                </div>
+                {contrat.documentUrl ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setModalModifier(true)}
+                    className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    <Edit3 className="size-3 mr-1" />
+                    Remplacer
+                  </Button>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setModalModifier(true)}
+                    className="h-7 gap-1 text-[11px] border-border text-foreground"
+                  >
+                    <Plus className="size-3" />
+                    Joindre un document
+                  </Button>
+                )}
+              </div>
+
+              {contrat.documentUrl ? (
+                <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-lg bg-primary/20 text-primary shrink-0">
+                      <Paperclip className="size-4" />
+                    </div>
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-xs font-bold text-foreground truncate">
+                        {contrat.documentNom || "Document contractuel"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {contrat.documentTailleOctets
+                          ? `${(contrat.documentTailleOctets / 1024).toFixed(1)} Ko • `
+                          : ""}
+                        Stocké dans Neon S3 • Archivé dans le Hub DigitalVision
+                      </p>
+                    </div>
+                  </div>
+
+                  <a
+                    href={contrat.documentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs shrink-0 transition-colors"
+                  >
+                    <ExternalLink className="size-3.5" />
+                    Ouvrir
+                  </a>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground space-y-2">
+                  <p>Aucun document ou scan n&apos;est actuellement attaché à ce contrat.</p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setModalModifier(true)}
+                    className="h-7 text-xs"
+                  >
+                    <Plus className="size-3 mr-1" />
+                    Ajouter le PDF ou scan du contrat
+                  </Button>
                 </div>
               )}
             </div>

@@ -156,5 +156,10 @@ export interface ContratDV {
   estPaye?: boolean
   montantPayeFCFA?: number
   payeLe?: string
+  documentId?: string
+  documentNom?: string
+  documentTailleOctets?: number
+  documentUrl?: string
+  tvaTaux?: number
 }
 
