@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Avatar from "@/components/_ui/avatar";
 import Button from "@/components/_ui/button";
 import Tag from "@/components/_ui/tag";
@@ -84,6 +85,30 @@ function typeContratLibelle(t: TypeContratDV) {
   }
 }
 
+function SaasDeepLinkWatcher({
+  saas,
+  onSelectSaas,
+  onSetOnglet,
+}: {
+  saas: { id: string }[];
+  onSelectSaas: (id: string | null) => void;
+  onSetOnglet: (o: string) => void;
+}) {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
+
+  useEffect(() => {
+    if (!id || saas.length === 0) return;
+    const existe = saas.some((s) => s.id === id);
+    if (existe) {
+      onSelectSaas(id);
+      onSetOnglet("produits");
+    }
+  }, [id, saas, onSelectSaas, onSetOnglet]);
+
+  return null;
+}
+
 export default function SaasHub() {
   const [onglet, setOnglet] = useState("produits");
   const [modalSaas, setModalSaas] = useState(false);
@@ -115,6 +140,13 @@ export default function SaasHub() {
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <Suspense fallback={null}>
+        <SaasDeepLinkWatcher
+          saas={saas}
+          onSelectSaas={setSaasIdSelectionne}
+          onSetOnglet={setOnglet}
+        />
+      </Suspense>
       <PageHeader
         title="SaaStup & Contrats DV"
         tabs={ONGLETS}

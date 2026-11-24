@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import PageHeader from "@/components/_common/page-header";
 import CompaniesToolbar from "./toolbar/toolbar";
 import CompaniesTable from "./table/companies-table";
@@ -15,6 +16,23 @@ const ONGLETS = [
   { value: "pipeline", label: "Pipeline" },
 ];
 
+function EntrepriseDeepLinkWatcher() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
+  const openDetail = useCockpit((state) => state.openDetail);
+  const crm = useCockpit((state) => state.crm);
+
+  useEffect(() => {
+    if (!id || !crm) return;
+    const existe = crm.entreprises.some((e) => e.id === id);
+    if (existe) {
+      openDetail(id);
+    }
+  }, [id, crm, openDetail]);
+
+  return null;
+}
+
 export default function Entreprises() {
   const crm = useCockpit((state) => state.crm);
   const filtres = useCockpit((state) => state.filtres);
@@ -28,6 +46,9 @@ export default function Entreprises() {
 
   return (
     <section id="entreprises" className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <Suspense fallback={null}>
+        <EntrepriseDeepLinkWatcher />
+      </Suspense>
       <PageHeader
         title="CRM & Pipeline"
         tabs={ONGLETS}

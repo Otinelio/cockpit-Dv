@@ -72,7 +72,8 @@ self.addEventListener('push', (event) => {
   const options = {
     body: donnees.corps,
     icon: donnees.icone || '/icons/icon-192.png',
-    badge: '/icon.svg',
+    badge: donnees.badge || '/icon.svg',
+    tag: donnees.tag || undefined,
     vibrate: [100, 50, 100],
     data: {
       url: donnees.url || '/',

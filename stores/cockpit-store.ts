@@ -13,11 +13,24 @@ import type {
 } from "@/server/dv-types";
 import type { CodeTva, Tableau } from "@/server/types";
 
+export type CategorieToast =
+  | "tache"
+  | "contrat"
+  | "facture"
+  | "saas"
+  | "depense"
+  | "suppression"
+  | "restauration"
+  | "client"
+  | "info";
+
 export type Toast = {
   id: number;
-  ton: "succes" | "erreur" | "info";
+  ton: "succes" | "erreur" | "info" | "tache" | "contrat" | "facture" | "saas" | "suppression" | "depense" | "client";
   titre: string;
   texte?: string;
+  categorie?: CategorieToast;
+  url?: string;
 };
 
 type CockpitState = {
@@ -265,9 +278,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
       const nouv = await api.ajouterTache(t);
       set((s) => ({ taches: [nouv, ...s.taches] }));
       get().toast({
-        ton: "succes",
+        ton: "tache",
+        categorie: "tache",
         titre: "Tâche programmée",
         texte: `${nouv.titre} pour ${nouv.assigneA}`,
+        url: `/taches?id=${nouv.id}`,
       });
       await get().chargerActivites();
       return nouv;
@@ -301,7 +316,12 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     try {
       await api.supprimerTache(id);
       set((s) => ({ taches: s.taches.filter((t) => t.id !== id) }));
-      get().toast({ ton: "info", titre: "Tâche supprimée" });
+      get().toast({
+        ton: "suppression",
+        categorie: "suppression",
+        titre: "Tâche supprimée",
+        texte: "La tâche a été retirée du planning.",
+      });
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur", texte: (e as Error).message });
     }
@@ -322,9 +342,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
       const nouv = await api.ajouterDepense(d);
       set((s) => ({ depenses: [nouv, ...s.depenses] }));
       get().toast({
-        ton: "succes",
+        ton: "depense",
+        categorie: "depense",
         titre: "Dépense enregistrée",
         texte: `${nouv.libelle} (${nouv.montantFCFA.toLocaleString("fr-FR")} FCFA)`,
+        url: "/factures",
       });
       await get().chargerActivites();
       return nouv;
@@ -338,7 +360,12 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     try {
       await api.supprimerDepense(id);
       set((s) => ({ depenses: s.depenses.filter((d) => d.id !== id) }));
-      get().toast({ ton: "info", titre: "Dépense retirée" });
+      get().toast({
+        ton: "suppression",
+        categorie: "suppression",
+        titre: "Dépense retirée",
+        texte: "La charge a été supprimée des finances.",
+      });
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur", texte: (e as Error).message });
     }
@@ -359,9 +386,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
       const nouv = await api.ajouterSaas(s);
       set((state) => ({ saas: [...state.saas, nouv] }));
       get().toast({
-        ton: "succes",
+        ton: "saas",
+        categorie: "saas",
         titre: `SaaS ${nouv.nom} créé`,
         texte: "Ajouté au pôle SaaStup de DigitalVision.",
+        url: `/saas?id=${nouv.id}`,
       });
       await get().chargerActivites();
       return nouv;
@@ -377,7 +406,12 @@ export const useCockpit = create<CockpitState>((set, get) => ({
       set((state) => ({
         saas: state.saas.map((s) => (s.id === id ? maj : s)),
       }));
-      get().toast({ ton: "succes", titre: `SaaS ${maj.nom} actualisé` });
+      get().toast({
+        ton: "saas",
+        categorie: "saas",
+        titre: `SaaS ${maj.nom} actualisé`,
+        url: `/saas?id=${maj.id}`,
+      });
       await get().chargerActivites();
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur", texte: (e as Error).message });
@@ -388,7 +422,12 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     try {
       await api.supprimerSaas(id);
       set((state) => ({ saas: state.saas.filter((s) => s.id !== id) }));
-      get().toast({ ton: "info", titre: "SaaS supprimé" });
+      get().toast({
+        ton: "suppression",
+        categorie: "suppression",
+        titre: "SaaS supprimé",
+        texte: "Le projet SaaS a été retiré de SaaStup.",
+      });
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur", texte: (e as Error).message });
     }
@@ -409,9 +448,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
       const nouv = await api.ajouterContrat(c);
       set((state) => ({ contrats: [nouv, ...state.contrats] }));
       get().toast({
-        ton: "succes",
+        ton: "contrat",
+        categorie: "contrat",
         titre: `Contrat enregistré`,
         texte: `${nouv.titre} pour ${nouv.nomEntreprise}`,
+        url: `/contrats?id=${nouv.id}`,
       });
       // Recharger tâches, CRM et factures qui ont pu être générées automatiquement
       await Promise.all([
@@ -453,11 +494,13 @@ export const useCockpit = create<CockpitState>((set, get) => ({
         get().chargerDepenses(),
       ]);
       get().toast({
-        ton: "succes",
+        ton: "suppression",
+        categorie: "suppression",
         titre: mode === 'hard' ? "Contrat supprimé définitivement" : "Contrat mis à la corbeille",
         texte: mode === 'hard'
           ? "Le contrat et ses données associées ont été supprimés définitivement."
           : "Le contrat et ses éléments liés sont désactivés (exclus du CA). Vous pouvez les restaurer à tout moment.",
+        url: "/contrats",
       });
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur", texte: (e as Error).message });
@@ -475,9 +518,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
         get().chargerDepenses(),
       ]);
       get().toast({
-        ton: "succes",
+        ton: "contrat",
+        categorie: "restauration",
         titre: "Contrat restauré",
         texte: "Le contrat, ses factures et ses tâches ont été réactivés avec succès.",
+        url: `/contrats?id=${id}`,
       });
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur de restauration", texte: (e as Error).message });
@@ -488,9 +533,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     try {
       const res = await api.facturerContrat(id, facture);
       get().toast({
-        ton: "succes",
+        ton: "facture",
+        categorie: "facture",
         titre: "Facture contrat créée",
         texte: `Brouillon de facture #${res.id} prêt à finaliser dans le module Finances.`,
+        url: `/factures?id=${res.id}`,
       });
       await Promise.all([
         get().chargerContrats(),
@@ -508,9 +555,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     try {
       const res = await api.facturerJalon(contratId, jalonId);
       get().toast({
-        ton: "succes",
+        ton: "facture",
+        categorie: "facture",
         titre: "Facture de jalon créée",
         texte: `Brouillon de facture #${res.id} prêt à finaliser dans le module Finances.`,
+        url: `/factures?id=${res.id}`,
       });
       await Promise.all([
         get().chargerContrats(),
@@ -619,11 +668,13 @@ export const useCockpit = create<CockpitState>((set, get) => ({
         get().chargerActivites(),
       ]);
       get().toast({
-        ton: "succes",
+        ton: "suppression",
+        categorie: "suppression",
         titre: mode === 'hard' ? "Entreprise supprimée définitivement" : "Entreprise mise à la corbeille",
         texte: mode === 'hard'
           ? "L'entreprise et ses éléments associés ont été supprimés définitivement."
           : "L'entreprise, ses contrats et factures rattachés sont marqués supprimés (exclus du CA).",
+        url: "/entreprises",
       });
       return true;
     } catch (err) {
@@ -646,9 +697,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
         get().chargerActivites(),
       ]);
       get().toast({
-        ton: "succes",
+        ton: "client",
+        categorie: "restauration",
         titre: "Entreprise restaurée",
         texte: "L'entreprise et ses contrats/factures rattachés sont de nouveau actifs.",
+        url: `/entreprises?id=${id}`,
       });
       return true;
     } catch (err) {
@@ -670,11 +723,13 @@ export const useCockpit = create<CockpitState>((set, get) => ({
         get().chargerActivites(),
       ]);
       get().toast({
-        ton: "succes",
+        ton: "suppression",
+        categorie: "suppression",
         titre: mode === 'hard' ? "Facture supprimée définitivement" : "Facture mise à la corbeille",
         texte: mode === 'hard'
           ? "La facture a été définitivement supprimée."
           : "La facture est désactivée et son impact sur le chiffre d'affaires a été retiré.",
+        url: "/factures",
       });
       return true;
     } catch (err) {
@@ -696,9 +751,11 @@ export const useCockpit = create<CockpitState>((set, get) => ({
         get().chargerActivites(),
       ]);
       get().toast({
-        ton: "succes",
+        ton: "facture",
+        categorie: "restauration",
         titre: "Facture restaurée",
         texte: "La facture a été réactivée et son montant réintégré au chiffre d'affaires.",
+        url: `/factures?id=${id}`,
       });
       return true;
     } catch (err) {

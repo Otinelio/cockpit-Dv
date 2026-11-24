@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { Suspense, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { Check, Copy, Download, Edit3, ExternalLink, FileText, Send, Stamp, ArrowDownCircle, ArrowUpCircle, Trash2, RotateCcw } from "lucide-react";
 import Button from "@/components/_ui/button";
 import {
@@ -101,6 +102,35 @@ function Echeance({ f }: { f: LigneFacture }) {
       {ouverte && j < 0 && <span aria-hidden className="bg-danger size-1.5 rounded-full" />}
     </span>
   );
+}
+
+function FactureDeepLinkWatcher({
+  factures,
+  onSelectFacture,
+  onSetVue,
+  onSetOnglet,
+}: {
+  factures: LigneFacture[];
+  onSelectFacture: (f: LigneFacture | null) => void;
+  onSetVue: (v: VueFinances) => void;
+  onSetOnglet: (o: Onglet) => void;
+}) {
+  const searchParams = useSearchParams();
+  const idStr = searchParams.get("id");
+
+  useEffect(() => {
+    if (!idStr || factures.length === 0) return;
+    const cible = factures.find((f) => String(f.id) === idStr);
+    if (cible) {
+      onSetVue("factures");
+      if (cible.estSupprime || cible.statut === "supprimee") {
+        onSetOnglet("corbeille");
+      }
+      onSelectFacture(cible);
+    }
+  }, [idStr, factures, onSelectFacture, onSetVue, onSetOnglet]);
+
+  return null;
 }
 
 export default function Factures() {
@@ -260,6 +290,14 @@ export default function Factures() {
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <Suspense fallback={null}>
+        <FactureDeepLinkWatcher
+          factures={factures}
+          onSelectFacture={setFactureAModifier}
+          onSetVue={setVue}
+          onSetOnglet={setOnglet}
+        />
+      </Suspense>
       <PageHeader
         title="Finances & Factures"
         tabs={

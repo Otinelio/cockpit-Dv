@@ -232,9 +232,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'tache',
+      action: 'creation',
+      categorie: 'tache',
       titre: `Nouvelle tâche pour ${tache.assigneA}`,
       details: tache.titre,
       cibleId: tache.id,
+      url: `/taches?id=${tache.id}`,
     })
     return json(201, tache)
   }
@@ -249,9 +252,23 @@ async function router(req: Request): Promise<Response> {
         await magasinActivite.enregistrer({
           auteur,
           type: 'tache',
-          titre: `Tâche terminée par ${auteur}`,
-          details: t.titre,
+          action: 'termine',
+          categorie: 'tache',
+          titre: `Tâche terminée : ${t.titre}`,
+          details: `Marquée terminée par ${auteur}`,
           cibleId: t.id,
+          url: `/taches?id=${t.id}`,
+        })
+      } else {
+        await magasinActivite.enregistrer({
+          auteur,
+          type: 'tache',
+          action: 'modification',
+          categorie: 'tache',
+          titre: `Tâche mise à jour : ${t.titre}`,
+          details: `Modifiée par ${auteur}`,
+          cibleId: t.id,
+          url: `/taches?id=${t.id}`,
         })
       }
       return json(200, t)
@@ -259,6 +276,16 @@ async function router(req: Request): Promise<Response> {
     if (methode === 'DELETE') {
       const ok = await magasinTaches.supprimer(id)
       if (!ok) throw new ErreurHttp(404, 'Tâche introuvable')
+      await magasinActivite.enregistrer({
+        auteur,
+        type: 'tache',
+        action: 'suppression',
+        categorie: 'suppression',
+        titre: `Tâche supprimée`,
+        details: `Tâche retirée par ${auteur}`,
+        cibleId: id,
+        url: '/taches',
+      })
       return json(200, { ok: true })
     }
   }
@@ -283,16 +310,30 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'depense',
+      action: 'creation',
+      categorie: 'depense',
       titre: `Dépense enregistrée : ${depense.libelle}`,
       details: `${depense.montantFCFA.toLocaleString('fr-FR')} FCFA (${depense.categorie}) • Payé par ${depense.payePar}`,
       cibleId: depense.id,
+      url: '/factures',
     })
     return json(201, depense)
   }
   const routeDepense = chemin.match(/^\/api\/depenses\/([a-z0-9-]+)$/)
   if (routeDepense && methode === 'DELETE') {
-    const ok = await magasinDepenses.supprimer(routeDepense[1])
+    const id = routeDepense[1]
+    const ok = await magasinDepenses.supprimer(id)
     if (!ok) throw new ErreurHttp(404, 'Dépense introuvable')
+    await magasinActivite.enregistrer({
+      auteur,
+      type: 'depense',
+      action: 'suppression',
+      categorie: 'suppression',
+      titre: `Dépense supprimée`,
+      details: `Dépense #${id} retirée par ${auteur}`,
+      cibleId: id,
+      url: '/factures',
+    })
     return json(200, { ok: true })
   }
 
@@ -323,9 +364,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'saas',
+      action: 'creation',
+      categorie: 'saas',
       titre: `Nouveau SaaS créé : ${saas.nom}`,
       details: saas.slogan,
       cibleId: saas.id,
+      url: `/saas?id=${saas.id}`,
     })
     return json(201, saas)
   }
@@ -344,15 +388,28 @@ async function router(req: Request): Promise<Response> {
       await magasinActivite.enregistrer({
         auteur,
         type: 'saas',
+        action: 'modification',
+        categorie: 'saas',
         titre: `Mise à jour du SaaS ${s.nom}`,
         details: `Statut : ${s.statut} • MRR : ${s.mrrFCFA.toLocaleString('fr-FR')} FCFA`,
         cibleId: s.id,
+        url: `/saas?id=${s.id}`,
       })
       return json(200, s)
     }
     if (methode === 'DELETE') {
       const ok = await magasinSaas.supprimer(id)
       if (!ok) throw new ErreurHttp(404, 'SaaS introuvable')
+      await magasinActivite.enregistrer({
+        auteur,
+        type: 'saas',
+        action: 'suppression',
+        categorie: 'suppression',
+        titre: `Projet SaaS supprimé`,
+        details: `Projet SaaS #${id} retiré par ${auteur}`,
+        cibleId: id,
+        url: '/saas',
+      })
       return json(200, { ok: true })
     }
   }
@@ -540,11 +597,14 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'contrat',
+      action: 'creation',
+      categorie: 'contrat',
       titre: `Nouveau contrat : ${contratFinal.titre}`,
       details: `${contratFinal.nomEntreprise} • ${contratFinal.montantFCFA.toLocaleString('fr-FR')} FCFA${
         tacheIdsCreees.length > 0 ? ` • ${tacheIdsCreees.length} tâche(s) générée(s)` : ''
       }${factureIdsCreees.length > 0 ? ' • Facture générée' : ''}`,
       cibleId: contratFinal.id,
+      url: `/contrats?id=${contratFinal.id}`,
     })
     return json(201, contratFinal)
   }
@@ -590,9 +650,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'facture',
+      action: 'creation',
+      categorie: 'facture',
       titre: `Facture contrat #${facture.id}`,
       details: `${libelle} • ${Math.round(b.montantHT).toLocaleString('fr-FR')} FCFA HT`,
       cibleId: facture.id,
+      url: `/factures?id=${facture.id}`,
     })
 
     return json(201, { id: facture.id })
@@ -649,9 +712,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'facture',
+      action: 'creation',
+      categorie: 'facture',
       titre: `Facture émise pour le jalon : ${jalon.titre}`,
       details: `${libelle} • ${jalon.montantFCFA.toLocaleString('fr-FR')} FCFA HT`,
       cibleId: facture.id,
+      url: `/factures?id=${facture.id}`,
     })
 
     return json(201, { id: facture.id, jalon: jalons[idx] })
@@ -741,19 +807,15 @@ async function router(req: Request): Promise<Response> {
       await magasinActivite.enregistrer({
         auteur: b.nomSignataire.trim(),
         type: 'contrat',
+        action: 'signature',
+        categorie: 'contrat',
         titre: `Convention validée et signée en ligne`,
         details: `${contrat.titre} — ${contrat.nomEntreprise} (Signé par ${b.nomSignataire.trim()})`,
         cibleId: contrat.id,
+        url: `/contrats?id=${contrat.id}`,
       })
 
       e.cache = null
-      await servicePush
-        .envoyer({
-          titre: '✍️ Contrat signé par le client !',
-          corps: `${b.nomSignataire.trim()} vient de signer le contrat "${contrat.titre}" (${contrat.nomEntreprise})`,
-          url: '/contrats',
-        })
-        .catch(() => {})
       return json(200, { ok: true, contrat: c })
     }
   }
@@ -770,6 +832,16 @@ async function router(req: Request): Promise<Response> {
       const modifs = (await lireJson(req)) as Partial<ContratDV>
       const c = await magasinContrats.modifier(id, modifs)
       if (!c) throw new ErreurHttp(404, 'Contrat introuvable')
+      await magasinActivite.enregistrer({
+        auteur,
+        type: 'contrat',
+        action: 'modification',
+        categorie: 'contrat',
+        titre: `Contrat mis à jour : ${c.titre}`,
+        details: `${c.nomEntreprise} • ${c.montantFCFA.toLocaleString('fr-FR')} FCFA`,
+        cibleId: id,
+        url: `/contrats?id=${id}`,
+      })
       return json(200, c)
     }
     if (methode === 'DELETE') {
@@ -787,9 +859,12 @@ async function router(req: Request): Promise<Response> {
         await magasinActivite.enregistrer({
           auteur,
           type: 'contrat',
+          action: 'suppression',
+          categorie: 'suppression',
           titre: `Contrat supprimé définitivement`,
           details: `${facturesSupprimees} facture(s) et ${tachesSupprimees} tâche(s) purgées`,
           cibleId: id,
+          url: '/contrats',
         })
         return json(200, { ok: true, mode: 'hard', facturesSupprimees, tachesSupprimees })
       } else {
@@ -805,9 +880,12 @@ async function router(req: Request): Promise<Response> {
         await magasinActivite.enregistrer({
           auteur,
           type: 'contrat',
+          action: 'suppression',
+          categorie: 'suppression',
           titre: `Contrat mis à la corbeille`,
           details: `${facturesInvalidees} facture(s) invalidée(s) et décomptée(s) du CA`,
           cibleId: id,
+          url: '/contrats',
         })
         return json(200, { ok: true, mode: 'soft', facturesInvalidees, tachesInvalidees })
       }
@@ -828,9 +906,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'contrat',
+      action: 'restauration',
+      categorie: 'restauration',
       titre: `Contrat restauré : ${c.titre}`,
       details: `${facturesRestaurees} facture(s) réactivée(s) et réintégrée(s) au CA`,
       cibleId: id,
+      url: `/contrats?id=${id}`,
     })
     return json(200, { ok: true, contrat: c, facturesRestaurees, tachesRestaurees })
   }
@@ -1050,9 +1131,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'client',
+      action: 'creation',
+      categorie: 'client',
       titre: `Nouveau client : ${nouv.nom}`,
       details: `Responsable : ${nouv.responsable} • Étape : ${nouv.etape}`,
       cibleId: nouv.id,
+      url: `/entreprises?id=${nouv.id}`,
     })
     return json(201, nouv)
   }
@@ -1065,9 +1149,12 @@ async function router(req: Request): Promise<Response> {
       await magasinActivite.enregistrer({
         auteur,
         type: 'etape',
+        action: 'modification',
+        categorie: 'client',
         titre: `${modif.nom} → ${modif.etape}`,
         details: `Pipeline : ${modif.pipeline.toLocaleString('fr-FR')} FCFA`,
         cibleId: modif.id,
+        url: `/entreprises?id=${modif.id}`,
       })
     }
     return json(200, modif)
@@ -1099,9 +1186,12 @@ async function router(req: Request): Promise<Response> {
       await magasinActivite.enregistrer({
         auteur,
         type: 'client',
+        action: 'suppression',
+        categorie: 'suppression',
         titre: `Entreprise supprimée définitivement : ${ent.nom}`,
         details: `${contratsSupprimes.length} contrat(s) et ${facturesSupprimees} facture(s) purgés`,
         cibleId: id,
+        url: '/entreprises',
       })
       return json(200, { ok: true, mode: 'hard', contratsSupprimes: contratsSupprimes.length, facturesSupprimees, tachesSupprimees })
     } else {
@@ -1123,9 +1213,12 @@ async function router(req: Request): Promise<Response> {
       await magasinActivite.enregistrer({
         auteur,
         type: 'client',
+        action: 'suppression',
+        categorie: 'suppression',
         titre: `Entreprise mise à la corbeille : ${ent.nom}`,
         details: `${contratsModifs.length} contrat(s) et ${facturesInvalidees} facture(s) invalidés`,
         cibleId: id,
+        url: '/entreprises',
       })
       return json(200, { ok: true, mode: 'soft', contratsModifs: contratsModifs.length, facturesInvalidees, tachesInvalidees })
     }
@@ -1154,8 +1247,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'client',
+      action: 'restauration',
+      categorie: 'restauration',
       titre: `Entreprise restaurée : ${ent.nom}`,
+      details: 'L’entreprise et ses éléments associés ont été réactivés',
       cibleId: id,
+      url: `/entreprises?id=${id}`,
     })
     return json(200, { ok: true, contratsRestaurees: contratsRestaurees.length, facturesRestaurees })
   }
@@ -1168,9 +1265,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'facture',
+      action: 'creation',
+      categorie: 'facture',
       titre: `Facture brouillon #${f.id}`,
       details: `${donnee.libelle} • ${donnee.montantHT.toLocaleString('fr-FR')} FCFA HT`,
       cibleId: f.id,
+      url: `/factures?id=${f.id}`,
     })
     return json(201, { id: f.id })
   }
@@ -1185,9 +1285,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'facture',
+      action: 'modification',
+      categorie: 'facture',
       titre: `Facture #${id} modifiée`,
       details: `${f.label} • ${Number(f.amount).toLocaleString('fr-FR')} FCFA`,
       cibleId: id,
+      url: `/factures?id=${id}`,
     })
     return json(200, f)
   }
@@ -1222,8 +1325,11 @@ async function router(req: Request): Promise<Response> {
       await magasinActivite.enregistrer({
         auteur,
         type: 'facture',
+        action: 'suppression',
+        categorie: 'suppression',
         titre: `Facture #${id} supprimée définitivement`,
         cibleId: id,
+        url: '/factures',
       })
       return json(200, { ok: true, mode: 'hard' })
     } else {
@@ -1253,8 +1359,11 @@ async function router(req: Request): Promise<Response> {
       await magasinActivite.enregistrer({
         auteur,
         type: 'facture',
+        action: 'suppression',
+        categorie: 'suppression',
         titre: `Facture #${id} mise à la corbeille (exclue du CA)`,
         cibleId: id,
+        url: '/factures',
       })
       return json(200, { ok: true, mode: 'soft' })
     }
@@ -1270,9 +1379,12 @@ async function router(req: Request): Promise<Response> {
     await magasinActivite.enregistrer({
       auteur,
       type: 'facture',
+      action: 'restauration',
+      categorie: 'restauration',
       titre: `Facture #${id} restaurée`,
       details: 'La facture a été réactivée et réintégrée au CA',
       cibleId: id,
+      url: `/factures?id=${id}`,
     })
     return json(200, { ok: true })
   }
@@ -1286,9 +1398,12 @@ async function router(req: Request): Promise<Response> {
       await magasinActivite.enregistrer({
         auteur,
         type: 'facture',
+        action: 'creation',
+        categorie: 'facture',
         titre: `Facture ${f.invoice_number} validée`,
         details: `${Number(f.amount).toLocaleString('fr-FR')} FCFA TTC`,
         cibleId: f.id,
+        url: `/factures?id=${f.id}`,
       })
       return json(200, { id: f.id, numero: f.invoice_number })
     }
@@ -1305,17 +1420,13 @@ async function router(req: Request): Promise<Response> {
       await magasinActivite.enregistrer({
         auteur,
         type: 'facture',
+        action: 'paiement',
+        categorie: 'facture',
         titre: `Paiement enregistré pour facture #${id}`,
         details: 'Facture encaissée',
         cibleId: id,
+        url: `/factures?id=${id}`,
       })
-      await servicePush
-        .envoyer({
-          titre: '💰 Paiement reçu !',
-          corps: `Paiement enregistré pour la facture #${id}`,
-          url: '/factures',
-        })
-        .catch(() => {})
       return json(200, { ok: true })
     }
     if (methode === 'GET' && action[2] === 'pdf' && local) {

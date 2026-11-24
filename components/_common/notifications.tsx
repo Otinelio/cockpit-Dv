@@ -18,6 +18,18 @@ import { cn } from "@/lib/utils";
 import type { Entreprise } from "@/server/crm-types";
 import { useCockpit } from "@/stores/cockpit-store";
 import BellIcon from "@/public/assets/images/companies/header/bell.svg";
+import {
+  CheckSquare,
+  FileSignature,
+  Receipt,
+  Rocket,
+  Trash2,
+  RotateCcw,
+  Building2,
+  CreditCard,
+  ChevronRight,
+  AlertTriangle,
+} from "lucide-react";
 
 type Filtre = "toutes" | "non-lues";
 
@@ -30,9 +42,97 @@ type Notif = {
   quand: string;
   factureId?: number;
   type?: string;
+  categorie?: string;
+  action?: string;
   cibleId?: string | number;
   url?: string;
 };
+
+function getNotifConfig(n: Notif) {
+  const isSuppr = n.action === "suppression" || n.type === "suppression";
+  const isRestaur = n.action === "restauration";
+  const cat = n.categorie || n.type;
+
+  if (isSuppr) {
+    return {
+      borderLeft: "border-l-rose-500",
+      bgIcon: "bg-rose-500/15 text-rose-400 border border-rose-500/30",
+      badgeClass: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+      badgeText: "CORBEILLE",
+      Icon: Trash2,
+    };
+  }
+  if (isRestaur) {
+    return {
+      borderLeft: "border-l-cyan-500",
+      bgIcon: "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30",
+      badgeClass: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+      badgeText: "RESTAURÉ",
+      Icon: RotateCcw,
+    };
+  }
+
+  switch (cat) {
+    case "tache":
+    case "appel":
+      return {
+        borderLeft: "border-l-emerald-500",
+        bgIcon: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+        badgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+        badgeText: "TÂCHE",
+        Icon: CheckSquare,
+      };
+    case "contrat":
+      return {
+        borderLeft: "border-l-teal-500",
+        bgIcon: "bg-teal-500/15 text-teal-400 border border-teal-500/30",
+        badgeClass: "bg-teal-500/20 text-teal-300 border-teal-500/30",
+        badgeText: "CONTRAT",
+        Icon: FileSignature,
+      };
+    case "facture":
+      return {
+        borderLeft: "border-l-amber-500",
+        bgIcon: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+        badgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+        badgeText: "FACTURE",
+        Icon: Receipt,
+      };
+    case "saas":
+      return {
+        borderLeft: "border-l-indigo-500",
+        bgIcon: "bg-indigo-500/15 text-indigo-400 border border-indigo-500/30",
+        badgeClass: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
+        badgeText: "SAAS",
+        Icon: Rocket,
+      };
+    case "depense":
+      return {
+        borderLeft: "border-l-pink-500",
+        bgIcon: "bg-pink-500/15 text-pink-400 border border-pink-500/30",
+        badgeClass: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+        badgeText: "DÉPENSE",
+        Icon: CreditCard,
+      };
+    case "client":
+    case "etape":
+      return {
+        borderLeft: "border-l-blue-500",
+        bgIcon: "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+        badgeClass: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+        badgeText: "CRM",
+        Icon: Building2,
+      };
+    default:
+      return {
+        borderLeft: "border-l-primary",
+        bgIcon: "bg-primary/15 text-primary border border-primary/30",
+        badgeClass: "bg-primary/20 text-primary border-primary/30",
+        badgeText: "ACTIVITÉ",
+        Icon: BellIcon,
+      };
+  }
+}
 
 function Marque({
   entreprise,
@@ -209,14 +309,17 @@ export default function Notifications() {
     const liste: Notif[] = [];
 
     // 1. Activités réelles de l'équipe (Audit Trail)
-    for (const a of activites.slice(0, 30)) {
-      let url = "/";
-      if (a.type === "contrat") url = "/contrats";
-      else if (a.type === "facture") url = "/factures";
-      else if (a.type === "client" || a.type === "etape") url = "/entreprises";
-      else if (a.type === "tache" || a.type === "appel") url = "/taches";
-      else if (a.type === "depense") url = "/factures";
-      else if (a.type === "saas") url = "/saas";
+    for (const a of activites.slice(0, 40)) {
+      let url = a.url;
+      if (!url) {
+        if (a.type === "contrat") url = a.cibleId ? `/contrats?id=${a.cibleId}` : "/contrats";
+        else if (a.type === "facture") url = a.cibleId ? `/factures?id=${a.cibleId}` : "/factures";
+        else if (a.type === "client" || a.type === "etape") url = a.cibleId ? `/entreprises?id=${a.cibleId}` : "/entreprises";
+        else if (a.type === "tache" || a.type === "appel") url = a.cibleId ? `/taches?id=${a.cibleId}` : "/taches";
+        else if (a.type === "depense") url = "/factures";
+        else if (a.type === "saas") url = a.cibleId ? `/saas?id=${a.cibleId}` : "/saas";
+        else url = "/";
+      }
 
       liste.push({
         id: `act-${a.id}`,
@@ -224,6 +327,8 @@ export default function Notifications() {
         message: a.titre,
         citation: a.details,
         type: a.type,
+        categorie: a.categorie || a.type,
+        action: a.action,
         cibleId: a.cibleId,
         url,
         quand: new Date(a.date).toLocaleDateString("fr-FR", {
@@ -247,7 +352,10 @@ export default function Notifications() {
           message: `Facture ${f.numero} de ${f.client} en retard (${pluriel(retard, "jour")})`,
           quand: `${euros(f.restant)} restant`,
           factureId: f.id,
-          url: "/factures",
+          type: "facture",
+          categorie: "facture",
+          action: "relance",
+          url: `/factures?id=${f.id}`,
         });
       }
 
@@ -260,7 +368,10 @@ export default function Notifications() {
             entreprise: e,
             message: `Contrat signé avec ${e.nom}`,
             quand: ilYaJours(e.dernierEchange.date),
-            url: "/entreprises",
+            type: "contrat",
+            categorie: "contrat",
+            action: "validation",
+            url: `/entreprises?id=${e.id}`,
           });
         }
         if (e.etape === "Nouveau" && joursDepuis(e.creeLe) <= 14) {
@@ -270,7 +381,10 @@ export default function Notifications() {
             message: `Nouveau lead : ${e.nom}`,
             citation: e.suite || undefined,
             quand: ilYaJours(e.dernierEchange.date),
-            url: "/entreprises",
+            type: "client",
+            categorie: "client",
+            action: "creation",
+            url: `/entreprises?id=${e.id}`,
           });
         }
       }
@@ -287,16 +401,16 @@ export default function Notifications() {
     navigue.current = true;
     setOpen(false);
 
-    if (n.entreprise) {
-      router.push("/entreprises");
+    if (n.url) {
+      router.push(n.url);
+      if ((n.type === "client" || n.type === "etape" || n.categorie === "client") && (n.cibleId || n.entreprise?.id)) {
+        openDetail(String(n.cibleId || n.entreprise?.id));
+      }
+    } else if (n.entreprise) {
+      router.push(`/entreprises?id=${n.entreprise.id}`);
       openDetail(n.entreprise.id);
     } else if (n.factureId) {
-      router.push("/factures");
-    } else if (n.url) {
-      router.push(n.url);
-      if ((n.type === "client" || n.type === "etape") && n.cibleId) {
-        openDetail(String(n.cibleId));
-      }
+      router.push(`/factures?id=${n.factureId}`);
     }
   }
 
@@ -444,49 +558,73 @@ export default function Notifications() {
                 {visibles.map((n) => {
                   const nonLue = !lues.includes(n.id);
                   const m = crm && n.acteur ? membre(crm.equipe, n.acteur) : null;
+                  const config = getNotifConfig(n);
+                  const Icon = config.Icon;
+
                   return (
                     <button
                       key={n.id}
                       type="button"
                       onClick={() => choisir(n)}
                       className={cn(
-                        "hover:bg-secondary/60 flex items-start gap-3 p-3 text-left transition-colors cursor-pointer",
-                        nonLue && "bg-secondary/30",
+                        "group hover:bg-[#1a1a1a] flex items-start gap-3 p-3 text-left transition-colors cursor-pointer border-l-4",
+                        config.borderLeft,
+                        nonLue ? "bg-[#181818]" : "bg-transparent",
                       )}
                     >
-                      {m ? (
-                        <Avatar
-                          nom={m.nom}
-                          ton={m.ton}
-                          className="mt-0.5 size-7 text-[9px]"
-                        />
-                      ) : n.entreprise ? (
-                        <Marque
-                          entreprise={n.entreprise}
-                          className="mt-0.5 size-7 rounded-lg"
-                        />
-                      ) : (
-                        <span className="bg-primary/20 text-primary mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg text-xs font-semibold">
-                          DV
-                        </span>
-                      )}
-
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="truncate text-xs font-medium">
-                            {n.acteur ? `${n.acteur} : ` : ""}
-                            {n.message}
-                          </span>
-                          {nonLue && (
-                            <span className="bg-primary size-1.5 shrink-0 rounded-full" />
+                      {/* Icône thématique ou Avatar avec badge */}
+                      <div className="relative mt-0.5 shrink-0">
+                        <div
+                          className={cn(
+                            "flex size-8 shrink-0 items-center justify-center rounded-lg shadow-sm transition-transform group-hover:scale-105",
+                            config.bgIcon,
                           )}
+                        >
+                          <Icon className="size-4" />
                         </div>
+                        {m && (
+                          <div className="absolute -bottom-1 -right-1 ring-1 ring-[#121212] rounded-full overflow-hidden">
+                            <Avatar
+                              nom={m.nom}
+                              ton={m.ton}
+                              className="size-3.5 text-[7px]"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span
+                              className={cn(
+                                "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border leading-none shrink-0",
+                                config.badgeClass,
+                              )}
+                            >
+                              {config.badgeText}
+                            </span>
+                            <span className="truncate text-xs font-semibold text-foreground">
+                              {n.acteur ? `${n.acteur} : ` : ""}
+                              {n.message}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {nonLue && (
+                              <span className="bg-primary size-1.5 shrink-0 rounded-full animate-pulse" />
+                            )}
+                            <ChevronRight className="size-3 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                          </div>
+                        </div>
+
                         {n.citation && (
-                          <p className="text-subtle line-clamp-2 text-[11px] leading-snug">
+                          <p className="text-muted-foreground line-clamp-2 text-[11px] leading-snug">
                             {n.citation}
                           </p>
                         )}
-                        <span className="text-subtle text-[10px]">{n.quand}</span>
+                        <span className="text-[10px] text-muted-foreground/70 font-mono">
+                          {n.quand}
+                        </span>
                       </div>
                     </button>
                   );

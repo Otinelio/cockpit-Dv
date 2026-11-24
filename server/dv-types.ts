@@ -2,6 +2,28 @@
 
 export type MembreDV = 'Othnelio' | 'Medard' | 'Roméo'
 
+export type CategorieActiviteDV =
+  | 'tache'
+  | 'contrat'
+  | 'facture'
+  | 'saas'
+  | 'client'
+  | 'suppression'
+  | 'restauration'
+  | 'depense'
+  | 'connexion'
+  | 'autre'
+
+export type ActionActiviteDV =
+  | 'creation'
+  | 'modification'
+  | 'suppression'
+  | 'restauration'
+  | 'signature'
+  | 'paiement'
+  | 'termine'
+  | 'general'
+
 export interface ActiviteDV {
   id: string
   auteur: string
@@ -10,6 +32,9 @@ export interface ActiviteDV {
   titre: string
   details?: string
   cibleId?: string | number
+  categorie?: CategorieActiviteDV
+  action?: ActionActiviteDV
+  url?: string
 }
 
 export type TypeTacheDV =

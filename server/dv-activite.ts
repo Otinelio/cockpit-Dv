@@ -4,6 +4,7 @@
 
 import { lireCollection, ecrireCollection } from './db'
 import type { ActiviteDV } from './dv-types'
+import { servicePush } from './dv-push'
 
 export class MagasinActivite {
   private async lire(): Promise<ActiviteDV[]> {
@@ -19,7 +20,10 @@ export class MagasinActivite {
     return list.slice(0, limite)
   }
 
-  async enregistrer(activite: Omit<ActiviteDV, 'id' | 'date'>): Promise<ActiviteDV> {
+  async enregistrer(
+    activite: Omit<ActiviteDV, 'id' | 'date'>,
+    options?: { notifierPush?: boolean },
+  ): Promise<ActiviteDV> {
     const list = await this.lire()
     const nouvel: ActiviteDV = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -30,6 +34,14 @@ export class MagasinActivite {
     list.unshift(nouvel)
     if (list.length > 500) list.pop()
     await this.sauvegarder(list)
+
+    // Déclencher la notification Push universelle en arrière-plan
+    if (options?.notifierPush !== false) {
+      servicePush.envoyerSelonActivite(nouvel).catch((err) => {
+        console.error('Erreur lors de l’envoi push automatique:', err)
+      })
+    }
+
     return nouvel
   }
 }

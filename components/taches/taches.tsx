@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Avatar from "@/components/_ui/avatar";
 import Button from "@/components/_ui/button";
 import { Checkbox } from "@/components/_ui/checkbox";
@@ -86,10 +87,35 @@ function libelleType(type: TypeTacheDV) {
   }
 }
 
+function TacheDeepLinkWatcher({
+  taches,
+  onTarget,
+  onSetOnglet,
+}: {
+  taches: { id: string; statut: string }[];
+  onTarget: (id: string | null) => void;
+  onSetOnglet: (o: string) => void;
+}) {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
+
+  useEffect(() => {
+    if (!id || taches.length === 0) return;
+    const cible = taches.find((t) => t.id === id);
+    if (cible) {
+      onTarget(cible.id);
+      onSetOnglet("toutes");
+    }
+  }, [id, taches, onTarget, onSetOnglet]);
+
+  return null;
+}
+
 export default function Taches() {
   const [onglet, setOnglet] = useState("toutes");
   const [filtreMembre, setFiltreMembre] = useState<string>("tous");
   const [modalOuverte, setModalOuverte] = useState(false);
+  const [tacheCibleId, setTacheCibleId] = useState<string | null>(null);
 
   const crm = useCockpit((s) => s.crm);
   const openDetail = useCockpit((s) => s.openDetail);
@@ -118,6 +144,13 @@ export default function Taches() {
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <Suspense fallback={null}>
+        <TacheDeepLinkWatcher
+          taches={taches}
+          onTarget={setTacheCibleId}
+          onSetOnglet={setOnglet}
+        />
+      </Suspense>
       <PageHeader
         title="Tâches & Agenda"
         tabs={ONGLETS}
@@ -263,13 +296,15 @@ export default function Taches() {
                   const estFaite = t.statut === "terminee";
                   const membreObj = MEMBRES_EQUIPE.find((m) => m.nom === t.assigneA);
                   const saasAssocie = saas.find((s) => s.id === t.saasId);
+                  const estCiblee = t.id === tacheCibleId;
 
                   return (
                     <div
                       key={t.id}
                       className={cn(
-                        "hover:bg-secondary/40 flex flex-col gap-2 p-4 transition-colors sm:flex-row sm:items-center sm:justify-between sm:gap-4",
+                        "hover:bg-secondary/40 flex flex-col gap-2 p-4 transition-all sm:flex-row sm:items-center sm:justify-between sm:gap-4",
                         estFaite && "opacity-60",
+                        estCiblee && "ring-2 ring-emerald-500 bg-emerald-500/10 rounded-xl shadow-lg shadow-emerald-950/20",
                       )}
                     >
                       <div className="flex min-w-0 items-start gap-3">

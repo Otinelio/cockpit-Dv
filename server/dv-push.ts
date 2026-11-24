@@ -3,6 +3,7 @@
 
 import * as webpush from 'web-push'
 import { lireCollection, ecrireCollection } from './db'
+import type { ActiviteDV, CategorieActiviteDV } from './dv-types'
 
 export interface AbonnementPushDV {
   id: string
@@ -108,6 +109,10 @@ export class ServicePush {
     corps: string
     url?: string
     icone?: string
+    tag?: string
+    badge?: string
+    categorie?: CategorieActiviteDV
+    data?: Record<string, unknown>
   }): Promise<{ envoyes: number; echecs: number }> {
     await initialiserVapid()
     const abos = await lireCollection<AbonnementPushDV[]>('abonnements_push', [])
@@ -118,6 +123,15 @@ export class ServicePush {
       corps: payload.corps,
       url: payload.url || '/',
       icone: payload.icone || '/icons/icon-192.png',
+      badge: payload.badge || '/icon.svg',
+      tag: payload.tag || `notif-${Date.now()}`,
+      categorie: payload.categorie || 'autre',
+      data: {
+        url: payload.url || '/',
+        categorie: payload.categorie || 'autre',
+        timestamp: Date.now(),
+        ...(payload.data || {}),
+      },
       timestamp: Date.now(),
     })
 
@@ -152,6 +166,99 @@ export class ServicePush {
     }
 
     return { envoyes, echecs }
+  }
+
+  async envoyerSelonActivite(activite: ActiviteDV): Promise<{ envoyes: number; echecs: number }> {
+    const titreMin = (activite.titre || '').toLowerCase()
+    const detailsMin = (activite.details || '').toLowerCase()
+
+    let emoji = '🔔'
+    let prefixe = '[INFO]'
+    let categorie: CategorieActiviteDV = activite.categorie || 'autre'
+    let urlCible = activite.url || '/'
+
+    const estSuppression =
+      activite.action === 'suppression' ||
+      titreMin.includes('supprim') ||
+      titreMin.includes('corbeille') ||
+      detailsMin.includes('corbeille')
+
+    const estRestauration =
+      activite.action === 'restauration' ||
+      titreMin.includes('restaur') ||
+      detailsMin.includes('restaur')
+
+    if (estSuppression) {
+      emoji = '🗑️'
+      prefixe = '[CORBEILLE]'
+      categorie = 'suppression'
+      if (activite.type === 'contrat') urlCible = '/contrats'
+      else if (activite.type === 'facture') urlCible = '/factures'
+      else if (activite.type === 'client') urlCible = '/entreprises'
+      else if (activite.type === 'tache') urlCible = '/taches'
+    } else if (estRestauration) {
+      emoji = '♻️'
+      prefixe = '[RESTAURÉ]'
+      categorie = 'restauration'
+      if (activite.type === 'contrat') urlCible = activite.cibleId ? `/contrats?id=${activite.cibleId}` : '/contrats'
+      else if (activite.type === 'facture') urlCible = activite.cibleId ? `/factures?id=${activite.cibleId}` : '/factures'
+      else if (activite.type === 'client') urlCible = activite.cibleId ? `/entreprises?id=${activite.cibleId}` : '/entreprises'
+      else if (activite.type === 'tache') urlCible = activite.cibleId ? `/taches?id=${activite.cibleId}` : '/taches'
+    } else if (activite.type === 'tache') {
+      const estTermine = activite.action === 'termine' || titreMin.includes('termin') || detailsMin.includes('termin')
+      emoji = estTermine ? '✅' : '📌'
+      prefixe = '[TÂCHE]'
+      categorie = 'tache'
+      urlCible = activite.cibleId ? `/taches?id=${activite.cibleId}` : '/taches'
+    } else if (activite.type === 'contrat') {
+      const estSigne = activite.action === 'signature' || titreMin.includes('sign') || detailsMin.includes('sign')
+      emoji = estSigne ? '✍️' : '📄'
+      prefixe = '[CONTRAT]'
+      categorie = 'contrat'
+      urlCible = activite.cibleId ? `/contrats?id=${activite.cibleId}` : '/contrats'
+    } else if (activite.type === 'facture') {
+      const estPaye = activite.action === 'paiement' || titreMin.includes('pay') || detailsMin.includes('encaiss')
+      emoji = estPaye ? '💰' : '💳'
+      prefixe = '[FACTURE]'
+      categorie = 'facture'
+      urlCible = activite.cibleId ? `/factures?id=${activite.cibleId}` : '/factures'
+    } else if (activite.type === 'saas') {
+      emoji = '🚀'
+      prefixe = '[SAAS]'
+      categorie = 'saas'
+      urlCible = activite.cibleId ? `/saas?id=${activite.cibleId}` : '/saas'
+    } else if (activite.type === 'client' || activite.type === 'etape') {
+      const estGagne = titreMin.includes('gagné') || detailsMin.includes('gagné')
+      emoji = estGagne ? '🎉' : '🏢'
+      prefixe = '[CLIENT]'
+      categorie = 'client'
+      urlCible = activite.cibleId ? `/entreprises?id=${activite.cibleId}` : '/entreprises'
+    } else if (activite.type === 'depense') {
+      emoji = '💸'
+      prefixe = '[DÉPENSE]'
+      categorie = 'depense'
+      urlCible = '/factures'
+    }
+
+    const titrePush = `${emoji} ${prefixe} ${activite.titre}`
+    const corpsPush = activite.details
+      ? `${activite.details} • par ${activite.auteur}`
+      : `Action enregistrée par ${activite.auteur} sur Cockpit.`
+
+    return this.envoyer({
+      titre: titrePush,
+      corps: corpsPush,
+      url: urlCible,
+      categorie,
+      tag: `act-${activite.type}-${activite.cibleId || activite.id}`,
+      data: {
+        activiteId: activite.id,
+        cibleId: activite.cibleId,
+        type: activite.type,
+        action: activite.action,
+        url: urlCible,
+      },
+    })
   }
 }
 

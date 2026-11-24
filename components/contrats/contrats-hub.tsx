@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Button from "@/components/_ui/button";
 import { ScrollArea } from "@/components/_ui/scroll-area";
 import Tag from "@/components/_ui/tag";
@@ -56,6 +57,32 @@ function statutBadge(s: StatutContratDV) {
     default:
       return <Tag tone="neutral" size="sm">Brouillon</Tag>;
   }
+}
+
+function ContratDeepLinkWatcher({
+  contrats,
+  onSelect,
+  onSetFiltre,
+}: {
+  contrats: ContratDV[];
+  onSelect: (c: ContratDV) => void;
+  onSetFiltre: (f: string) => void;
+}) {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
+
+  useEffect(() => {
+    if (!id || contrats.length === 0) return;
+    const cible = contrats.find((c) => c.id === id);
+    if (cible) {
+      if (cible.estSupprime || cible.statut === "supprime") {
+        onSetFiltre("supprime");
+      }
+      onSelect(cible);
+    }
+  }, [id, contrats, onSelect, onSetFiltre]);
+
+  return null;
 }
 
 export default function ContratsHub() {
@@ -125,6 +152,14 @@ export default function ContratsHub() {
           </span>
         }
       />
+
+      <Suspense fallback={null}>
+        <ContratDeepLinkWatcher
+          contrats={contrats}
+          onSelect={setContratSelectionne}
+          onSetFiltre={setFiltreStatut}
+        />
+      </Suspense>
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12 max-w-7xl w-full mx-auto space-y-6">
