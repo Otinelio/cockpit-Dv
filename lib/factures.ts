@@ -8,6 +8,7 @@ export const STATUTS: Record<StatutFacture, { libelle: string; ton: Ton }> = {
   a_venir: { libelle: "À venir", ton: "yellow" },
   en_retard: { libelle: "En retard", ton: "red" },
   brouillon: { libelle: "Brouillon", ton: "neutral" },
+  supprimee: { libelle: "Supprimée", ton: "red" },
 };
 
 export function enRetard(f: LigneFacture) {

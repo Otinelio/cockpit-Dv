@@ -22,7 +22,7 @@ export type TypeTacheDV =
   | 'administratif'
 
 export type PrioriteTacheDV = 'urgente' | 'haute' | 'normale' | 'basse'
-export type StatutTacheDV = 'a_faire' | 'en_cours' | 'terminee'
+export type StatutTacheDV = 'a_faire' | 'en_cours' | 'terminee' | 'supprimee'
 
 export interface TacheDV {
   id: string
@@ -42,6 +42,9 @@ export interface TacheDV {
   prestationId?: string
   creeeLe: string
   termineeLe?: string
+  estSupprime?: boolean
+  supprimeLe?: string
+  statutPrecedent?: StatutContratDV
 }
 
 export type CategorieDepenseDV =
@@ -111,7 +114,7 @@ export interface SaasDV {
 }
 
 export type TypeContratDV = 'creation_site' | 'app_mobile' | 'logiciel' | 'maintenance' | 'conseil'
-export type StatutContratDV = 'brouillon' | 'en_attente' | 'actif' | 'termine' | 'resilie'
+export type StatutContratDV = 'brouillon' | 'en_attente' | 'actif' | 'termine' | 'resilie' | 'supprime'
 
 export type ModeFacturationContrat = 'aucun' | 'integral' | 'acompte_50' | 'acompte_30' | 'sur_mesure' | 'jalons'
 
@@ -176,5 +179,8 @@ export interface ContratDV {
   documentUrl?: string
   tvaTaux?: number
   jetonSignature?: string
+  estSupprime?: boolean
+  supprimeLe?: string
+  statutPrecedent?: StatutContratDV
 }
 

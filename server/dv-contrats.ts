@@ -97,12 +97,102 @@ export class MagasinContrats {
     return list[idx]
   }
 
+  async marquerSupprime(id: string): Promise<ContratDV | null> {
+    const list = await this.lire()
+    const idx = list.findIndex((c) => c.id === id)
+    if (idx === -1) return null
+    if (list[idx].statut !== 'supprime') {
+      list[idx].statutPrecedent = list[idx].statut
+    }
+    list[idx].estSupprime = true
+    list[idx].supprimeLe = new Date().toISOString()
+    list[idx].statut = 'supprime'
+    await this.sauvegarder(list)
+    return list[idx]
+  }
+
+  async restaurer(id: string): Promise<ContratDV | null> {
+    const list = await this.lire()
+    const idx = list.findIndex((c) => c.id === id)
+    if (idx === -1) return null
+    list[idx].estSupprime = false
+    list[idx].supprimeLe = undefined
+    list[idx].statut = list[idx].statutPrecedent || (list[idx].estSigne ? 'actif' : 'brouillon')
+    list[idx].statutPrecedent = undefined
+    await this.sauvegarder(list)
+    return list[idx]
+  }
+
+  async marquerSupprimesParEntreprise(entrepriseId: string, nomEntreprise?: string): Promise<ContratDV[]> {
+    const list = await this.lire()
+    const nomLower = nomEntreprise?.trim().toLowerCase()
+    const modifies: ContratDV[] = []
+    for (const c of list) {
+      const matchId = c.entrepriseId === entrepriseId
+      const matchNom = !!(nomLower && c.nomEntreprise && c.nomEntreprise.trim().toLowerCase() === nomLower)
+      if ((matchId || matchNom) && !c.estSupprime) {
+        if (c.statut !== 'supprime') {
+          c.statutPrecedent = c.statut
+        }
+        c.estSupprime = true
+        c.supprimeLe = new Date().toISOString()
+        c.statut = 'supprime'
+        modifies.push(c)
+      }
+    }
+    if (modifies.length > 0) {
+      await this.sauvegarder(list)
+    }
+    return modifies
+  }
+
+  async restaurerParEntreprise(entrepriseId: string, nomEntreprise?: string): Promise<ContratDV[]> {
+    const list = await this.lire()
+    const nomLower = nomEntreprise?.trim().toLowerCase()
+    const modifies: ContratDV[] = []
+    for (const c of list) {
+      const matchId = c.entrepriseId === entrepriseId
+      const matchNom = !!(nomLower && c.nomEntreprise && c.nomEntreprise.trim().toLowerCase() === nomLower)
+      if ((matchId || matchNom) && c.estSupprime) {
+        c.estSupprime = false
+        c.supprimeLe = undefined
+        c.statut = c.statutPrecedent || (c.estSigne ? 'actif' : 'brouillon')
+        c.statutPrecedent = undefined
+        modifies.push(c)
+      }
+    }
+    if (modifies.length > 0) {
+      await this.sauvegarder(list)
+    }
+    return modifies
+  }
+
   async supprimer(id: string): Promise<boolean> {
     const list = await this.lire()
     const filtre = list.filter((c) => c.id !== id)
     if (filtre.length === list.length) return false
     await this.sauvegarder(filtre)
     return true
+  }
+
+  async supprimerParEntreprise(entrepriseId: string, nomEntreprise?: string): Promise<ContratDV[]> {
+    const list = await this.lire()
+    const nomLower = nomEntreprise?.trim().toLowerCase()
+    const supprimes: ContratDV[] = []
+    const restants: ContratDV[] = []
+    for (const c of list) {
+      const matchId = c.entrepriseId === entrepriseId
+      const matchNom = !!(nomLower && c.nomEntreprise && c.nomEntreprise.trim().toLowerCase() === nomLower)
+      if (matchId || matchNom) {
+        supprimes.push(c)
+      } else {
+        restants.push(c)
+      }
+    }
+    if (supprimes.length > 0) {
+      await this.sauvegarder(restants)
+    }
+    return supprimes
   }
 }
 

@@ -21,14 +21,15 @@ const STATUTS: Partial<Record<string, StatutFacture>> = {
   upcoming: 'a_venir',
   late: 'en_retard',
   draft: 'brouillon',
+  cancelled: 'supprimee',
 }
 
 /** Montant HT qui compte dans le chiffre d'affaires. Une facture annulée est compensée par son avoir. */
 function caHT(f: PLCustomerInvoice) {
-  if (f.draft || f.status === 'draft') return 0
+  if (f.estSupprime || f.draft || f.status === 'draft' || f.status === 'cancelled') return 0
   const ht = num(f.currency_amount_before_tax)
   if (f.status === 'credit_note') return -Math.abs(ht)
-  return ['paid', 'partially_paid', 'upcoming', 'late', 'cancelled', 'partially_cancelled'].includes(f.status) ? ht : 0
+  return ['paid', 'partially_paid', 'upcoming', 'late'].includes(f.status) ? ht : 0
 }
 
 const somme = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
@@ -156,18 +157,21 @@ export async function calculerTableau(source: Source, objectifAnnuel: number): P
 
   // ---------- Tableau des factures ----------
   const lignes: LigneFacture[] = factures
-    .filter((f) => STATUTS[f.status] || f.draft)
+    .filter((f) => STATUTS[f.status] || f.draft || f.estSupprime)
     .map((f) => ({
       id: f.id,
       numero: f.invoice_number,
       client: (f.customer && nomClient.get(f.customer.id)) ?? 'Client inconnu',
       clientId: f.customer?.id ?? null,
-      statut: f.draft ? 'brouillon' : STATUTS[f.status]!,
+      statut: f.estSupprime ? 'supprimee' : f.draft ? 'brouillon' : (STATUTS[f.status] ?? 'a_venir'),
       montant: num(f.amount),
-      restant: f.status === 'paid' ? 0 : num(f.remaining_amount_with_tax),
+      restant: f.status === 'paid' || f.estSupprime ? 0 : num(f.remaining_amount_with_tax),
       date: f.date,
       echeance: f.deadline,
       contratId: f.contratId,
+      estSupprime: f.estSupprime,
+      supprimeLe: f.supprimeLe,
+      motifSuppression: f.motifSuppression,
     }))
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || b.id - a.id)
 

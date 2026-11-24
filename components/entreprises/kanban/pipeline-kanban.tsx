@@ -84,7 +84,7 @@ export default function PipelineKanban() {
   const entreprises = useMemo(
     () =>
       (crm?.entreprises ?? []).filter(
-        (e) => responsable === TOUS || e.responsable === responsable,
+        (e) => !e.estSupprime && (responsable === TOUS || e.responsable === responsable),
       ),
     [crm, responsable],
   );

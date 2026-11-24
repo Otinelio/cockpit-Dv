@@ -221,6 +221,26 @@ export function magasinCrm(mode: 'demo' | 'pennylane' | 'local') {
       return base
     },
 
+    async marquerSupprime(id: string): Promise<boolean> {
+      const crm = await lire()
+      const e = crm.entreprises.find((x) => x.id === id)
+      if (!e) return false
+      e.estSupprime = true
+      e.supprimeLe = aujourdhui()
+      await ecrire(crm)
+      return true
+    },
+
+    async restaurer(id: string): Promise<boolean> {
+      const crm = await lire()
+      const e = crm.entreprises.find((x) => x.id === id)
+      if (!e) return false
+      e.estSupprime = false
+      e.supprimeLe = undefined
+      await ecrire(crm)
+      return true
+    },
+
     async supprimer(id: string): Promise<boolean> {
       const crm = await lire()
       const longAvant = crm.entreprises.length

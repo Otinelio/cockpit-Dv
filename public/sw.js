@@ -1,5 +1,5 @@
-// Service Worker pour Cockpit DV (PWA)
-const CACHE_NAME = 'cockpit-dv-v1';
+// Service Worker pour Cockpit DV (PWA & Notifications Push)
+const CACHE_NAME = 'cockpit-dv-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.webmanifest',
@@ -50,3 +50,66 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// Écouteur des notifications Push Web / PWA
+self.addEventListener('push', (event) => {
+  let donnees = {
+    titre: 'Cockpit DigitalVision',
+    corps: 'Nouvelle activité enregistrée sur Cockpit.',
+    url: '/',
+    icone: '/icons/icon-192.png',
+  };
+
+  try {
+    if (event.data) {
+      donnees = Object.assign(donnees, event.data.json());
+    }
+  } catch {
+    if (event.data) {
+      donnees.corps = event.data.text();
+    }
+  }
+
+  const options = {
+    body: donnees.corps,
+    icon: donnees.icone || '/icons/icon-192.png',
+    badge: '/icon.svg',
+    vibrate: [100, 50, 100],
+    data: {
+      url: donnees.url || '/',
+      timestamp: Date.now(),
+    },
+    actions: [
+      { action: 'open', title: 'Ouvrir Cockpit' },
+    ],
+  };
+
+  event.waitUntil(self.registration.showNotification(donnees.titre, options));
+});
+
+// Clic sur une notification push
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const urlCible = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Si une fenêtre est déjà ouverte, la mettre au premier plan et naviguer
+      for (const client of clients) {
+        if ('focus' in client) {
+          if (client.url.includes(urlCible)) {
+            return client.focus();
+          }
+          if ('navigate' in client) {
+            client.navigate(urlCible);
+            return client.focus();
+          }
+        }
+      }
+      // Sinon, ouvrir une nouvelle fenêtre
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(urlCible);
+      }
+    })
+  );
+});

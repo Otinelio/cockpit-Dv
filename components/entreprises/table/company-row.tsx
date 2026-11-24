@@ -62,6 +62,7 @@ export default function CompanyRow({
       className={cn(
         TABLE_ROW_CLASS,
         "hover:bg-card/60 data-[active=true]:border-card data-[active=true]:bg-card cursor-pointer",
+        company.estSupprime && "opacity-60 line-through bg-red-950/10 hover:bg-red-950/20",
       )}
     >
       <TableCell role="cell" className={cellClass("name")}>

@@ -137,6 +137,7 @@ export function filtrer(
   vue: Vue = "toutes",
 ): Entreprise[] {
   const liste = entreprises.filter((e) => {
+    if (e.estSupprime && vue !== "toutes") return false;
     if (vue === "prospects" && !estProspect(e)) return false;
     if (vue === "clients" && estProspect(e)) return false;
     if (responsable !== TOUS && e.responsable !== responsable) return false;

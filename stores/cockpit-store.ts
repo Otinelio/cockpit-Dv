@@ -28,7 +28,8 @@ type CockpitState = {
   charger: (frais?: boolean) => Promise<void>;
   modifierEntreprise: (id: string, modif: ModifEntreprise) => Promise<void>;
   ajouterEntreprise: (modif: ModifEntreprise) => Promise<Entreprise | null>;
-  supprimerEntreprise: (id: string) => Promise<boolean>;
+  supprimerEntreprise: (id: string, mode?: 'soft' | 'hard') => Promise<boolean>;
+  restaurerEntreprise: (id: string) => Promise<boolean>;
 
   // Authentification & Session DV
   utilisateurActif: string;
@@ -72,7 +73,8 @@ type CockpitState = {
     c: Omit<ContratDV, "id" | "creeLe"> & OptionsCreationContrat,
   ) => Promise<ContratDV | null>;
   modifierContrat: (id: string, modifs: Partial<ContratDV>) => Promise<void>;
-  supprimerContrat: (id: string) => Promise<void>;
+  supprimerContrat: (id: string, mode?: 'soft' | 'hard') => Promise<void>;
+  restaurerContrat: (id: string) => Promise<void>;
   facturerContrat: (
     id: string,
     facture: { libelle?: string; montantHT: number; tva?: CodeTva; echeanceJours?: number },
@@ -82,6 +84,8 @@ type CockpitState = {
   // Suivi factures
   suivis: number[];
   suivrePaiement: (id: number) => void;
+  supprimerFacture: (id: number, mode?: 'soft' | 'hard') => Promise<boolean>;
+  restaurerFacture: (id: number) => Promise<boolean>;
 
   // Toasts
   toasts: Toast[];
@@ -438,13 +442,45 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     }
   },
 
-  async supprimerContrat(id) {
+  async supprimerContrat(id, mode = 'soft') {
     try {
-      await api.supprimerContrat(id);
-      set((state) => ({ contrats: state.contrats.filter((c) => c.id !== id) }));
-      get().toast({ ton: "info", titre: "Contrat supprimé" });
+      await api.supprimerContrat(id, mode);
+      await Promise.all([
+        get().chargerContrats(),
+        get().charger(true),
+        get().chargerTaches(),
+        get().chargerActivites(),
+        get().chargerDepenses(),
+      ]);
+      get().toast({
+        ton: "succes",
+        titre: mode === 'hard' ? "Contrat supprimé définitivement" : "Contrat mis à la corbeille",
+        texte: mode === 'hard'
+          ? "Le contrat et ses données associées ont été supprimés définitivement."
+          : "Le contrat et ses éléments liés sont désactivés (exclus du CA). Vous pouvez les restaurer à tout moment.",
+      });
     } catch (e) {
       get().toast({ ton: "erreur", titre: "Erreur", texte: (e as Error).message });
+    }
+  },
+
+  async restaurerContrat(id) {
+    try {
+      await api.restaurerContrat(id);
+      await Promise.all([
+        get().chargerContrats(),
+        get().charger(true),
+        get().chargerTaches(),
+        get().chargerActivites(),
+        get().chargerDepenses(),
+      ]);
+      get().toast({
+        ton: "succes",
+        titre: "Contrat restauré",
+        texte: "Le contrat, ses factures et ses tâches ont été réactivés avec succès.",
+      });
+    } catch (e) {
+      get().toast({ ton: "erreur", titre: "Erreur de restauration", texte: (e as Error).message });
     }
   },
 
@@ -573,29 +609,102 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     }
   },
 
-  async supprimerEntreprise(id) {
+  async supprimerEntreprise(id, mode = 'soft') {
     try {
-      await api.supprimerEntreprise(id);
-      const crm = get().crm;
-      if (crm) {
-        set({
-          crm: {
-            ...crm,
-            entreprises: crm.entreprises.filter((e) => e.id !== id),
-          },
-        });
-      }
-      await get().chargerActivites();
+      await api.supprimerEntreprise(id, mode);
+      await Promise.all([
+        get().charger(true),
+        get().chargerContrats(),
+        get().chargerTaches(),
+        get().chargerActivites(),
+      ]);
       get().toast({
         ton: "succes",
-        titre: "Entreprise supprimée",
-        texte: "L'entreprise a bien été retirée de ton CRM.",
+        titre: mode === 'hard' ? "Entreprise supprimée définitivement" : "Entreprise mise à la corbeille",
+        texte: mode === 'hard'
+          ? "L'entreprise et ses éléments associés ont été supprimés définitivement."
+          : "L'entreprise, ses contrats et factures rattachés sont marqués supprimés (exclus du CA).",
       });
       return true;
     } catch (err) {
       get().toast({
         ton: "erreur",
         titre: "Erreur de suppression",
+        texte: (err as Error).message,
+      });
+      return false;
+    }
+  },
+
+  async restaurerEntreprise(id) {
+    try {
+      await api.restaurerEntreprise(id);
+      await Promise.all([
+        get().charger(true),
+        get().chargerContrats(),
+        get().chargerTaches(),
+        get().chargerActivites(),
+      ]);
+      get().toast({
+        ton: "succes",
+        titre: "Entreprise restaurée",
+        texte: "L'entreprise et ses contrats/factures rattachés sont de nouveau actifs.",
+      });
+      return true;
+    } catch (err) {
+      get().toast({
+        ton: "erreur",
+        titre: "Erreur de restauration",
+        texte: (err as Error).message,
+      });
+      return false;
+    }
+  },
+
+  async supprimerFacture(id, mode = 'soft') {
+    try {
+      await api.supprimerFacture(id, mode);
+      await Promise.all([
+        get().charger(true),
+        get().chargerContrats(),
+        get().chargerActivites(),
+      ]);
+      get().toast({
+        ton: "succes",
+        titre: mode === 'hard' ? "Facture supprimée définitivement" : "Facture mise à la corbeille",
+        texte: mode === 'hard'
+          ? "La facture a été définitivement supprimée."
+          : "La facture est désactivée et son impact sur le chiffre d'affaires a été retiré.",
+      });
+      return true;
+    } catch (err) {
+      get().toast({
+        ton: "erreur",
+        titre: "Erreur de suppression",
+        texte: (err as Error).message,
+      });
+      return false;
+    }
+  },
+
+  async restaurerFacture(id) {
+    try {
+      await api.restaurerFacture(id);
+      await Promise.all([
+        get().charger(true),
+        get().chargerContrats(),
+        get().chargerActivites(),
+      ]);
+      get().toast({
+        ton: "succes",
+        titre: "Facture restaurée",
+        texte: "La facture a été réactivée et son montant réintégré au chiffre d'affaires.",
+      });
+      return true;
+    } catch (err) {
+      get().toast({
+        ton: "erreur",
+        titre: "Erreur de restauration",
         texte: (err as Error).message,
       });
       return false;

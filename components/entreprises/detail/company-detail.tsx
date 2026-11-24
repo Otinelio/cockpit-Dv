@@ -67,6 +67,7 @@ import {
   CheckSquare,
   Edit3,
   Save,
+  RotateCcw,
 } from "lucide-react";
 
 const ETAPE_OPTIONS = ETAPES.map((etape) => ({ value: etape, label: etape }));
@@ -129,6 +130,7 @@ export default function CompanyDetail() {
   const closeDetail = useCockpit((state) => state.closeDetail);
   const modifier = useCockpit((state) => state.modifierEntreprise);
   const supprimer = useCockpit((state) => state.supprimerEntreprise);
+  const restaurer = useCockpit((state) => state.restaurerEntreprise);
   const ouvrirFacture = useCockpit((state) => state.ouvrirFacture);
   const toast = useCockpit((state) => state.toast);
 
@@ -287,6 +289,24 @@ export default function CompanyDetail() {
               Informations, modifications, contacts directs, tâches et contrats de l&apos;entreprise
             </SheetDescription>
           </SheetHeader>
+
+          {/* BANDEAU ENTREPRISE DANS LA CORBEILLE */}
+          {company.estSupprime && (
+            <div className="flex items-center justify-between gap-2 bg-red-950/30 border-b border-red-500/30 px-5 py-2.5 text-xs text-red-200">
+              <span>Entreprise dans la corbeille. Ses contrats et factures rattachés sont désactivés (exclus du CA).</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={async () => {
+                  const ok = await restaurer(company.id);
+                  if (ok) closeDetail();
+                }}
+                className="h-7 text-xs border-red-500/30 shrink-0 text-trend hover:text-trend/80"
+              >
+                Restaurer
+              </Button>
+            </div>
+          )}
 
           {/* BANDEAU MODIFICATIONS NON ENREGISTRÉES */}
           {modifie && (
@@ -810,21 +830,73 @@ export default function CompanyDetail() {
           </ScrollArea>
 
           <SheetFooter className="border-t border-border bg-card/60 p-4 flex flex-row items-center justify-between gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                if (confirm(`Supprimer définitivement "${company.nom}" du CRM ?`)) {
-                  const ok = await supprimer(company.id);
-                  if (ok) closeDetail();
-                }
-              }}
-              className="text-red-400 hover:text-red-300 hover:bg-red-500/10 gap-1.5 text-xs h-8"
-            >
-              <Trash2 className="size-3.5" />
-              Supprimer
-            </Button>
+            <div className="flex items-center gap-2">
+              {company.estSupprime ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      const ok = await restaurer(company.id);
+                      if (ok) closeDetail();
+                    }}
+                    className="text-trend hover:text-trend/80 hover:bg-trend/10 gap-1.5 text-xs h-8"
+                  >
+                    <RotateCcw className="size-3.5" />
+                    Restaurer
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      if (confirm(`Action irréversible : supprimer DÉFINITIVEMENT "${company.nom}", ses contrats et ses factures du CRM ?`)) {
+                        const ok = await supprimer(company.id, "hard");
+                        if (ok) closeDetail();
+                      }
+                    }}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 gap-1.5 text-xs h-8"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Supprimer définitivement
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      if (confirm(`Mettre "${company.nom}" à la corbeille ? Ses contrats et factures rattachés seront désactivés et exclus du CA.`)) {
+                        const ok = await supprimer(company.id, "soft");
+                        if (ok) closeDetail();
+                      }
+                    }}
+                    className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 gap-1.5 text-xs h-8"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Mettre à la corbeille
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      if (confirm(`Action irréversible : supprimer DÉFINITIVEMENT "${company.nom}", ses contrats et ses factures du CRM ?`)) {
+                        const ok = await supprimer(company.id, "hard");
+                        if (ok) closeDetail();
+                      }
+                    }}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 gap-1.5 text-xs h-8"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Supprimer définitivement
+                  </Button>
+                </>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               <SheetClose asChild>

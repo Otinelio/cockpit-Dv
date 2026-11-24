@@ -10,7 +10,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/_ui/popover";
-import { ScrollArea } from "@/components/_ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/_ui/tabs";
 import { api } from "@/lib/api";
 import { membre } from "@/lib/cockpit";
@@ -30,6 +29,9 @@ type Notif = {
   citation?: string;
   quand: string;
   factureId?: number;
+  type?: string;
+  cibleId?: string | number;
+  url?: string;
 };
 
 function Marque({
@@ -53,11 +55,26 @@ function Marque({
   );
 }
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export default function Notifications() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [filtre, setFiltre] = useState<Filtre>("toutes");
   const [relance, setRelance] = useState<number | null>(null);
+  const [pushSupporte, setPushSupporte] = useState(false);
+  const [pushSouscrit, setPushSouscrit] = useState(false);
+  const [pushChargement, setPushChargement] = useState(false);
+
   const navigue = useRef(false);
   const tableau = useCockpit((state) => state.tableau);
   const crm = useCockpit((state) => state.crm);
@@ -74,6 +91,112 @@ export default function Notifications() {
     chargerActivites();
   }, [chargerActivites]);
 
+  // Initialisation et statut des notifications Push PWA
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      "serviceWorker" in navigator &&
+      "PushManager" in window &&
+      "Notification" in window
+    ) {
+      navigator.serviceWorker.ready
+        .then(async (reg) => {
+          setPushSupporte(true);
+          const sub = await reg.pushManager.getSubscription();
+          setPushSouscrit(Boolean(sub));
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  async function basculerPush() {
+    if (!pushSupporte) return;
+    setPushChargement(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (pushSouscrit) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await api.notifications.desinscrire(sub.endpoint).catch(() => {});
+          await sub.unsubscribe();
+        }
+        setPushSouscrit(false);
+        toast({
+          ton: "info",
+          titre: "Push PWA désactivé",
+          texte: "Vous ne recevrez plus de notifications push sur cet appareil.",
+        });
+      } else {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") {
+          toast({
+            ton: "erreur",
+            titre: "Permission refusée",
+            texte: "Veuillez autoriser les notifications dans les paramètres du navigateur.",
+          });
+          return;
+        }
+        const { clePublique } = await api.notifications.clePublique();
+        const applicationServerKey = urlBase64ToUint8Array(clePublique);
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey,
+        });
+        const subJson = sub.toJSON();
+        await api.notifications.souscrire({
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: subJson.keys?.p256dh || "",
+            auth: subJson.keys?.auth || "",
+          },
+          userAgent: navigator.userAgent,
+        });
+        setPushSouscrit(true);
+        toast({
+          ton: "succes",
+          titre: "Notifications Push activées !",
+          texte: "Vous recevrez les alertes instantanées même lorsque Cockpit est en arrière-plan.",
+        });
+      }
+    } catch (err) {
+      toast({
+        ton: "erreur",
+        titre: "Erreur Push",
+        texte: (err as Error).message,
+      });
+    } finally {
+      setPushChargement(false);
+    }
+  }
+
+  async function testerPush() {
+    setPushChargement(true);
+    try {
+      const res = await api.notifications.tester();
+      if (res.envoyes > 0) {
+        toast({
+          ton: "succes",
+          titre: "Push de test envoyé !",
+          texte: "Regardez les notifications natives de votre appareil.",
+        });
+      } else {
+        toast({
+          ton: "info",
+          titre: "Aucun appareil abonné",
+          texte: "Activez d'abord le bouton Push sur cet appareil.",
+        });
+      }
+    } catch (err) {
+      toast({
+        ton: "erreur",
+        titre: "Erreur de test",
+        texte: (err as Error).message,
+      });
+    } finally {
+      setPushChargement(false);
+    }
+  }
+
   const retards = useMemo(
     () =>
       (tableau?.factures ?? [])
@@ -86,12 +209,23 @@ export default function Notifications() {
     const liste: Notif[] = [];
 
     // 1. Activités réelles de l'équipe (Audit Trail)
-    for (const a of activites.slice(0, 25)) {
+    for (const a of activites.slice(0, 30)) {
+      let url = "/";
+      if (a.type === "contrat") url = "/contrats";
+      else if (a.type === "facture") url = "/factures";
+      else if (a.type === "client" || a.type === "etape") url = "/entreprises";
+      else if (a.type === "tache" || a.type === "appel") url = "/taches";
+      else if (a.type === "depense") url = "/factures";
+      else if (a.type === "saas") url = "/saas";
+
       liste.push({
         id: `act-${a.id}`,
         acteur: a.auteur,
         message: a.titre,
         citation: a.details,
+        type: a.type,
+        cibleId: a.cibleId,
+        url,
         quand: new Date(a.date).toLocaleDateString("fr-FR", {
           day: "numeric",
           month: "short",
@@ -113,6 +247,7 @@ export default function Notifications() {
           message: `Facture ${f.numero} de ${f.client} en retard (${pluriel(retard, "jour")})`,
           quand: `${euros(f.restant)} restant`,
           factureId: f.id,
+          url: "/factures",
         });
       }
 
@@ -125,6 +260,7 @@ export default function Notifications() {
             entreprise: e,
             message: `Contrat signé avec ${e.nom}`,
             quand: ilYaJours(e.dernierEchange.date),
+            url: "/entreprises",
           });
         }
         if (e.etape === "Nouveau" && joursDepuis(e.creeLe) <= 14) {
@@ -134,6 +270,7 @@ export default function Notifications() {
             message: `Nouveau lead : ${e.nom}`,
             citation: e.suite || undefined,
             quand: ilYaJours(e.dernierEchange.date),
+            url: "/entreprises",
           });
         }
       }
@@ -149,8 +286,18 @@ export default function Notifications() {
     marquerLue(n.id);
     navigue.current = true;
     setOpen(false);
-    if (n.entreprise) openDetail(n.entreprise.id);
-    else if (n.factureId) router.push("/factures");
+
+    if (n.entreprise) {
+      router.push("/entreprises");
+      openDetail(n.entreprise.id);
+    } else if (n.factureId) {
+      router.push("/factures");
+    } else if (n.url) {
+      router.push(n.url);
+      if ((n.type === "client" || n.type === "etape") && n.cibleId) {
+        openDetail(String(n.cibleId));
+      }
+    }
   }
 
   async function relancerTout() {
@@ -210,7 +357,7 @@ export default function Notifications() {
       <PopoverContent
         align="end"
         sideOffset={6}
-        className="w-[360px] p-0 sm:w-[400px]"
+        className="w-[calc(100vw-24px)] max-w-[420px] p-0 sm:w-[420px]"
       >
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
@@ -228,6 +375,48 @@ export default function Notifications() {
           )}
         </div>
 
+        {/* Section Notifications Push PWA */}
+        {pushSupporte && (
+          <div className="border-border bg-secondary/30 flex items-center justify-between border-b px-4 py-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  pushSouscrit ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/50",
+                )}
+              />
+              <span className="text-foreground font-medium">
+                {pushSouscrit ? "Push PWA actif" : "Notifications Push PWA"}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {pushSouscrit && (
+                <button
+                  type="button"
+                  onClick={testerPush}
+                  disabled={pushChargement}
+                  className="caption-style text-primary hover:underline px-1 py-0.5"
+                >
+                  Tester
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={basculerPush}
+                disabled={pushChargement}
+                className={cn(
+                  "rounded px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  pushSouscrit
+                    ? "bg-secondary text-subtle hover:text-foreground"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90",
+                )}
+              >
+                {pushChargement ? "..." : pushSouscrit ? "Désactiver" : "Activer"}
+              </button>
+            </div>
+          </div>
+        )}
+
         <Tabs
           value={filtre}
           onValueChange={(v) => setFiltre(v as Filtre)}
@@ -244,7 +433,8 @@ export default function Notifications() {
             </TabsList>
           </div>
 
-          <ScrollArea className="max-h-[380px]">
+          {/* Conteneur de défilement fluide et natif */}
+          <div className="max-h-[60vh] sm:max-h-[400px] overflow-y-auto overscroll-contain divide-border divide-y pr-0.5">
             {visibles.length === 0 ? (
               <div className="text-subtle p-8 text-center text-sm">
                 Aucune notification pour le moment.
@@ -260,7 +450,7 @@ export default function Notifications() {
                       type="button"
                       onClick={() => choisir(n)}
                       className={cn(
-                        "hover:bg-secondary/60 flex items-start gap-3 p-3 text-left transition-colors",
+                        "hover:bg-secondary/60 flex items-start gap-3 p-3 text-left transition-colors cursor-pointer",
                         nonLue && "bg-secondary/30",
                       )}
                     >
@@ -303,7 +493,7 @@ export default function Notifications() {
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </Tabs>
 
         {retards.length > 0 && (

@@ -1,8 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import { Check, Copy, Download, Edit3, ExternalLink, FileText, Send, Stamp, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { Check, Copy, Download, Edit3, ExternalLink, FileText, Send, Stamp, ArrowDownCircle, ArrowUpCircle, Trash2, RotateCcw } from "lucide-react";
 import Button from "@/components/_ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/_ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,7 +45,7 @@ import DotsIcon from "@/public/assets/images/companies/table/dots-horizontal.svg
 const VIDE: LigneFacture[] = [];
 
 type VueFinances = "factures" | "depenses";
-type Onglet = "toutes" | "a-encaisser" | "en-retard" | "payees" | "brouillons";
+type Onglet = "toutes" | "a-encaisser" | "en-retard" | "payees" | "brouillons" | "corbeille";
 
 const ONGLETS_FACTURES = [
   { value: "toutes", label: "Toutes" },
@@ -45,6 +53,7 @@ const ONGLETS_FACTURES = [
   { value: "en-retard", label: "En retard" },
   { value: "payees", label: "Payées" },
   { value: "brouillons", label: "Brouillons" },
+  { value: "corbeille", label: "Corbeille" },
 ];
 
 const TRIS = [
@@ -102,6 +111,8 @@ export default function Factures() {
   const [periode, setPeriode] = useState("0");
   const [limite, setLimite] = useState<string | null>(null);
   const [factureAModifier, setFactureAModifier] = useState<LigneFacture | null>(null);
+  const [factureASupprimer, setFactureASupprimer] = useState<{ facture: LigneFacture; mode: 'soft' | 'hard' } | null>(null);
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false);
 
   const tableau = useCockpit((state) => state.tableau);
   const factures = useCockpit((state) => state.tableau?.factures) ?? VIDE;
@@ -113,6 +124,19 @@ export default function Factures() {
   const ouvrirFacture = useCockpit((state) => state.ouvrirFacture);
   const depenses = useCockpit((state) => state.depenses);
   const chargerDepenses = useCockpit((state) => state.chargerDepenses);
+  const supprimerFacture = useCockpit((state) => state.supprimerFacture);
+  const restaurerFacture = useCockpit((state) => state.restaurerFacture);
+
+  async function executerSuppression() {
+    if (!factureASupprimer) return;
+    setSuppressionEnCours(true);
+    try {
+      const ok = await supprimerFacture(factureASupprimer.facture.id, factureASupprimer.mode);
+      if (ok) setFactureASupprimer(null);
+    } finally {
+      setSuppressionEnCours(false);
+    }
+  }
 
   function ouvrirClient(f: LigneFacture) {
     const c = crm?.entreprises.find((e) => e.pennylaneId === f.clientId);
@@ -137,10 +161,12 @@ export default function Factures() {
   const visibles = useMemo(() => {
     return factures
       .filter((f) => {
-        if (onglet === "a-encaisser") return f.statut !== "payee" && f.statut !== "brouillon";
-        if (onglet === "en-retard") return enRetard(f);
-        if (onglet === "payees") return f.statut === "payee";
-        if (onglet === "brouillons") return f.statut === "brouillon";
+        const estSuppr = Boolean(f.estSupprime || f.statut === "supprimee");
+        if (onglet === "corbeille") return estSuppr;
+        if (onglet === "a-encaisser") return !estSuppr && f.statut !== "payee" && f.statut !== "brouillon";
+        if (onglet === "en-retard") return !estSuppr && enRetard(f);
+        if (onglet === "payees") return !estSuppr && f.statut === "payee";
+        if (onglet === "brouillons") return !estSuppr && f.statut === "brouillon";
         return true;
       })
       .filter((f) => {
@@ -156,24 +182,24 @@ export default function Factures() {
   }, [factures, onglet, tri, client, limite]);
 
   const totalEncaisse = useMemo(
-    () => factures.filter((f) => f.statut === "payee").reduce((s, f) => s + f.montant, 0),
+    () => factures.filter((f) => f.statut === "payee" && !f.estSupprime).reduce((s, f) => s + f.montant, 0),
     [factures],
   );
 
   const total = useMemo(
-    () => visibles.reduce((s, f) => s + f.montant, 0),
+    () => visibles.filter((f) => !f.estSupprime && f.statut !== "supprimee").reduce((s, f) => s + f.montant, 0),
     [visibles],
   );
 
   const restant = useMemo(
-    () => visibles.reduce((s, f) => s + f.restant, 0),
+    () => visibles.filter((f) => !f.estSupprime && f.statut !== "supprimee").reduce((s, f) => s + f.restant, 0),
     [visibles],
   );
 
   const retard = useMemo(
     () =>
       visibles
-        .filter((f) => enRetard(f))
+        .filter((f) => !f.estSupprime && f.statut !== "supprimee" && enRetard(f))
         .reduce((s, f) => s + f.restant, 0),
     [visibles],
   );
@@ -340,127 +366,189 @@ export default function Factures() {
                   </TableRow>
                 </TableHeader>
                 <TableBody role="rowgroup" className="contents">
-                  {visibles.map((f) => (
-                    <TableRow
-                      key={f.id}
-                      role="row"
-                      onClick={() => ouvrirClient(f)}
-                      className={cn(LIGNE, "hover:bg-card/60 cursor-pointer")}
-                    >
-                      <TableCell role="cell" className="flex items-center tabular-nums">
-                        {f.numero || <span className="text-subtle">Brouillon</span>}
-                      </TableCell>
-                      <TableCell role="cell" className="flex items-center">
-                        {f.client}
-                      </TableCell>
-                      <TableCell role="cell" className="flex items-center">
-                        <Tag tone={STATUTS[f.statut].ton}>{STATUTS[f.statut].libelle}</Tag>
-                      </TableCell>
-                      <TableCell role="cell" className="flex items-center tabular-nums">
-                        {jourCourt(f.date)}
-                      </TableCell>
-                      <TableCell role="cell" className="flex items-center">
-                        <Echeance f={f} />
-                      </TableCell>
-                      <TableCell role="cell" className="flex items-center justify-end tabular-nums">
-                        {euros(f.montant, true)}
-                      </TableCell>
-                      <TableCell role="cell" className="flex items-center justify-end tabular-nums">
-                        {f.statut === "payee" ? <span className="text-subtle">—</span> : euros(f.restant, true)}
-                      </TableCell>
-                      <TableCell role="cell" className="flex items-center justify-end gap-1.5" onClick={stop}>
-                        {f.statut === "brouillon" ? (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => finaliser(f)}
-                            className="h-7 px-2.5 text-xs font-semibold gap-1 bg-trend hover:bg-trend/90 text-white shadow-sm"
-                            title="Valider définitivement et attribuer le numéro officiel"
-                          >
-                            <Stamp className="size-3" />
-                            Valider
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => window.open(api.urlPdf(f.id), "_blank", "noopener")}
-                            className="h-7 px-2 text-xs gap-1 border-border"
-                            title="Télécharger le PDF officiel"
-                          >
-                            <Download className="size-3" />
-                            PDF
-                          </Button>
+                  {visibles.map((f) => {
+                    const estSuppr = Boolean(f.estSupprime || f.statut === "supprimee");
+                    return (
+                      <TableRow
+                        key={f.id}
+                        role="row"
+                        onClick={() => ouvrirClient(f)}
+                        className={cn(
+                          LIGNE,
+                          "hover:bg-card/60 cursor-pointer",
+                          estSuppr && "opacity-60 line-through bg-red-950/10 hover:bg-red-950/20",
                         )}
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                      >
+                        <TableCell role="cell" className="flex items-center tabular-nums">
+                          {f.numero || <span className="text-subtle">Brouillon</span>}
+                        </TableCell>
+                        <TableCell role="cell" className="flex items-center">
+                          {f.client}
+                        </TableCell>
+                        <TableCell role="cell" className="flex items-center">
+                          <Tag tone={STATUTS[f.statut]?.ton ?? "red"}>
+                            {STATUTS[f.statut]?.libelle ?? "Supprimée"}
+                          </Tag>
+                        </TableCell>
+                        <TableCell role="cell" className="flex items-center tabular-nums">
+                          {jourCourt(f.date)}
+                        </TableCell>
+                        <TableCell role="cell" className="flex items-center">
+                          <Echeance f={f} />
+                        </TableCell>
+                        <TableCell role="cell" className="flex items-center justify-end tabular-nums">
+                          {euros(f.montant, true)}
+                        </TableCell>
+                        <TableCell role="cell" className="flex items-center justify-end tabular-nums">
+                          {f.statut === "payee" || estSuppr ? <span className="text-subtle">—</span> : euros(f.restant, true)}
+                        </TableCell>
+                        <TableCell role="cell" className="flex items-center justify-end gap-1.5" onClick={stop}>
+                          {estSuppr ? (
                             <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-foreground data-[state=open]:bg-white/6 size-7"
-                              aria-label={`Actions de la facture ${f.numero || "brouillon"}`}
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => restaurerFacture(f.id)}
+                              className="h-7 px-2 text-xs gap-1 border-border text-trend hover:text-trend/80"
+                              title="Restaurer la facture et la réintégrer dans le chiffre d'affaires"
                             >
-                              <DotsIcon aria-hidden className="size-3" />
+                              <RotateCcw className="size-3" />
+                              Restaurer
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {f.statut === "brouillon" ? (
-                              <>
-                                <DropdownMenuItem onSelect={() => finaliser(f)}>
-                                  <Stamp aria-hidden className="size-3.5" />
-                                  Valider définitivement
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => window.open(api.urlPdf(f.id), "_blank", "noopener")}>
-                                  <FileText aria-hidden className="size-3.5" />
-                                  Voir le Proforma PDF
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => setFactureAModifier(f)}>
-                                  <Edit3 aria-hidden className="size-3.5" />
-                                  Modifier la facture
-                                </DropdownMenuItem>
-                              </>
-                            ) : (
-                              <>
-                                <DropdownMenuItem onSelect={() => window.open(api.urlPdf(f.id), "_blank", "noopener")}>
-                                  <FileText aria-hidden className="size-3.5" />
-                                  Télécharger le PDF
-                                </DropdownMenuItem>
-                                {f.statut !== "payee" && (
+                          ) : f.statut === "brouillon" ? (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => finaliser(f)}
+                              className="h-7 px-2.5 text-xs font-semibold gap-1 bg-trend hover:bg-trend/90 text-white shadow-sm"
+                              title="Valider définitivement et attribuer le numéro officiel"
+                            >
+                              <Stamp className="size-3" />
+                              Valider
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => window.open(api.urlPdf(f.id), "_blank", "noopener")}
+                              className="h-7 px-2 text-xs gap-1 border-border"
+                              title="Télécharger le PDF officiel"
+                            >
+                              <Download className="size-3" />
+                              PDF
+                            </Button>
+                          )}
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-foreground data-[state=open]:bg-white/6 size-7"
+                                aria-label={`Actions de la facture ${f.numero || "brouillon"}`}
+                              >
+                                <DotsIcon aria-hidden className="size-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {estSuppr ? (
+                                <>
+                                  <DropdownMenuItem onSelect={() => restaurerFacture(f.id)}>
+                                    <RotateCcw aria-hidden className="size-3.5 text-trend" />
+                                    Restaurer la facture
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onSelect={() => setFactureASupprimer({ facture: f, mode: "hard" })}
+                                    className="text-danger focus:text-danger focus:bg-danger/10"
+                                  >
+                                    <Trash2 aria-hidden className="size-3.5" />
+                                    Supprimer définitivement
+                                  </DropdownMenuItem>
+                                </>
+                              ) : f.statut === "brouillon" ? (
+                                <>
+                                  <DropdownMenuItem onSelect={() => finaliser(f)}>
+                                    <Stamp aria-hidden className="size-3.5" />
+                                    Valider définitivement
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onSelect={() => window.open(api.urlPdf(f.id), "_blank", "noopener")}>
+                                    <FileText aria-hidden className="size-3.5" />
+                                    Voir le Proforma PDF
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem onSelect={() => setFactureAModifier(f)}>
                                     <Edit3 aria-hidden className="size-3.5" />
-                                    Modifier montant / TVA
+                                    Modifier la facture
                                   </DropdownMenuItem>
-                                )}
-                                {f.statut !== "payee" && local && (
-                                  <DropdownMenuItem onSelect={() => payer(f)}>
-                                    <Check aria-hidden className="size-3.5" />
-                                    Marquer comme payée
+                                  <DropdownMenuItem
+                                    onSelect={() => setFactureASupprimer({ facture: f, mode: "soft" })}
+                                    className="text-amber-500 focus:text-amber-500 focus:bg-amber-500/10"
+                                  >
+                                    <Trash2 aria-hidden className="size-3.5" />
+                                    Mettre à la corbeille
                                   </DropdownMenuItem>
-                                )}
-                                {f.statut !== "payee" && !local && (
-                                  <>
-                                    <DropdownMenuItem onSelect={() => lien(f, "ouvrir")}>
-                                      <ExternalLink aria-hidden className="size-3.5" />
-                                      Ouvrir le lien de paiement
+                                  <DropdownMenuItem
+                                    onSelect={() => setFactureASupprimer({ facture: f, mode: "hard" })}
+                                    className="text-danger focus:text-danger focus:bg-danger/10"
+                                  >
+                                    <Trash2 aria-hidden className="size-3.5" />
+                                    Supprimer définitivement
+                                  </DropdownMenuItem>
+                                </>
+                              ) : (
+                                <>
+                                  <DropdownMenuItem onSelect={() => window.open(api.urlPdf(f.id), "_blank", "noopener")}>
+                                    <FileText aria-hidden className="size-3.5" />
+                                    Télécharger le PDF
+                                  </DropdownMenuItem>
+                                  {f.statut !== "payee" && (
+                                    <DropdownMenuItem onSelect={() => setFactureAModifier(f)}>
+                                      <Edit3 aria-hidden className="size-3.5" />
+                                      Modifier montant / TVA
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onSelect={() => lien(f, "copier")}>
-                                      <Copy aria-hidden className="size-3.5" />
-                                      Copier le lien de paiement
+                                  )}
+                                  {f.statut !== "payee" && local && (
+                                    <DropdownMenuItem onSelect={() => payer(f)}>
+                                      <Check aria-hidden className="size-3.5" />
+                                      Marquer comme payée
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onSelect={() => renvoyer(f)}>
-                                      <Send aria-hidden className="size-3.5" />
-                                      Renvoyer par e-mail
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                                  )}
+                                  {f.statut !== "payee" && !local && (
+                                    <>
+                                      <DropdownMenuItem onSelect={() => lien(f, "ouvrir")}>
+                                        <ExternalLink aria-hidden className="size-3.5" />
+                                        Ouvrir le lien de paiement
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onSelect={() => lien(f, "copier")}>
+                                        <Copy aria-hidden className="size-3.5" />
+                                        Copier le lien de paiement
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onSelect={() => renvoyer(f)}>
+                                        <Send aria-hidden className="size-3.5" />
+                                        Renvoyer par e-mail
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  <DropdownMenuItem
+                                    onSelect={() => setFactureASupprimer({ facture: f, mode: "soft" })}
+                                    className="text-amber-500 focus:text-amber-500 focus:bg-amber-500/10"
+                                  >
+                                    <Trash2 aria-hidden className="size-3.5" />
+                                    Mettre à la corbeille
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onSelect={() => setFactureASupprimer({ facture: f, mode: "hard" })}
+                                    className="text-danger focus:text-danger focus:bg-danger/10"
+                                  >
+                                    <Trash2 aria-hidden className="size-3.5" />
+                                    Supprimer définitivement
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                   {visibles.length === 0 && (
                     <TableRow role="row" className={LIGNE}>
                       <td role="cell" className="caption-style text-muted-foreground col-span-full flex h-[120px] items-center justify-center">
@@ -499,6 +587,51 @@ export default function Factures() {
         open={Boolean(factureAModifier)}
         onOpenChange={(open) => !open && setFactureAModifier(null)}
       />
+
+      <Dialog open={Boolean(factureASupprimer)} onOpenChange={(open) => !open && setFactureASupprimer(null)}>
+        <DialogContent className="max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>
+              {factureASupprimer?.mode === "hard"
+                ? "Supprimer définitivement la facture"
+                : "Mettre la facture à la corbeille"}
+            </DialogTitle>
+            <DialogDescription>
+              {factureASupprimer?.mode === "hard"
+                ? `Êtes-vous sûr de vouloir supprimer définitivement cette facture (${factureASupprimer?.facture.numero || "Brouillon"}) ? Cette action est irréversible et recalculera le chiffre d'affaires.`
+                : `Mettre cette facture (${factureASupprimer?.facture.numero || "Brouillon"}) à la corbeille ? Son montant sera exclu du chiffre d'affaires et elle apparaîtra comme barrée.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setFactureASupprimer(null)}
+              disabled={suppressionEnCours}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className={cn(
+                "text-white",
+                factureASupprimer?.mode === "hard"
+                  ? "bg-danger hover:bg-danger/80"
+                  : "bg-amber-600 hover:bg-amber-500",
+              )}
+              onClick={executerSuppression}
+              disabled={suppressionEnCours}
+            >
+              {suppressionEnCours
+                ? "En cours…"
+                : factureASupprimer?.mode === "hard"
+                  ? "Confirmer la suppression"
+                  : "Mettre à la corbeille"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

@@ -89,6 +89,8 @@ export interface Entreprise {
   /** Le client Pennylane relié, s'il y en a un. */
   pennylaneId: number | null
   creeLe: string
+  estSupprime?: boolean
+  supprimeLe?: string | null
 }
 
 export interface Crm {

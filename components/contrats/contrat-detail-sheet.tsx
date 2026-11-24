@@ -59,6 +59,7 @@ const STATUTS: Record<
   brouillon: { label: "Brouillon / Négociation", tone: "neutral" },
   termine: { label: "Terminé / Livré", tone: "purple" },
   resilie: { label: "Résilié", tone: "red" },
+  supprime: { label: "Supprimé (Corbeille)", tone: "red" },
 };
 
 export default function ContratDetailSheet({ contrat, open, onOpenChange }: Props) {
@@ -82,6 +83,7 @@ function ContenuContratDetail({
   const facturerJalon = useCockpit((s) => s.facturerJalon);
   const modifierTache = useCockpit((s) => s.modifierTache);
   const supprimerContrat = useCockpit((s) => s.supprimerContrat);
+  const restaurerContrat = useCockpit((s) => s.restaurerContrat);
   const openDetail = useCockpit((s) => s.openDetail);
   const toast = useCockpit((s) => s.toast);
 
@@ -163,13 +165,23 @@ function ContenuContratDetail({
     }
   }
 
-  async function handleSupprimer() {
-    if (confirm(`Es-tu sûr de vouloir supprimer définitivement le contrat "${contrat.titre}" ?`)) {
-      await supprimerContrat(contrat.id);
-      toast({
-        ton: "info",
-        titre: "Contrat supprimé",
-      });
+  const estDansCorbeille = Boolean(contrat.estSupprime || contrat.statut === "supprime");
+
+  async function handleMettreALaCorbeille() {
+    if (confirm(`Mettre le contrat "${contrat.titre}" à la corbeille ? Les factures et tâches rattachées seront désactivées et exclues du CA.`)) {
+      await supprimerContrat(contrat.id, "soft");
+      onOpenChange(false);
+    }
+  }
+
+  async function handleRestaurer() {
+    await restaurerContrat(contrat.id);
+    onOpenChange(false);
+  }
+
+  async function handleSupprimerDefinitif() {
+    if (confirm(`Action irréversible : confirmer la suppression DÉFINITIVE du contrat "${contrat.titre}", de ses factures et de ses tâches ?`)) {
+      await supprimerContrat(contrat.id, "hard");
       onOpenChange(false);
     }
   }
@@ -247,6 +259,14 @@ function ContenuContratDetail({
                 </span>
               </div>
             </div>
+            {estDansCorbeille && (
+              <div className="bg-red-950/30 border border-red-500/30 text-red-200 text-xs px-3.5 py-2.5 rounded-lg flex items-center justify-between gap-2">
+                <span>Contrat dans la corbeille. Ses factures et tâches rattachées sont désactivées (exclues du CA).</span>
+                <Button variant="secondary" size="sm" onClick={handleRestaurer} className="h-7 text-xs border-red-500/30 shrink-0">
+                  Restaurer
+                </Button>
+              </div>
+            )}
           </SheetHeader>
 
           {/* 2. CORPS DÉFILANT */}
@@ -800,16 +820,53 @@ function ContenuContratDetail({
 
           {/* 3. PIED DE PAGE DU TIROIR */}
           <SheetFooter className="border-t border-border bg-card/60 p-4 flex flex-row items-center justify-between gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleSupprimer}
-              className="gap-1.5 text-xs text-rose-400 hover:text-rose-300 border-rose-500/20"
-            >
-              <Trash2 className="size-3.5" />
-              Supprimer le contrat
-            </Button>
+            <div className="flex items-center gap-2">
+              {estDansCorbeille ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleRestaurer}
+                    className="gap-1.5 text-xs text-trend hover:text-trend/80 border-trend/20"
+                  >
+                    Restaurer le contrat
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSupprimerDefinitif}
+                    className="gap-1.5 text-xs text-rose-400 hover:text-rose-300 border-rose-500/20"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Supprimer définitivement
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleMettreALaCorbeille}
+                    className="gap-1.5 text-xs text-amber-400 hover:text-amber-300 border-amber-500/20"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Mettre à la corbeille
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSupprimerDefinitif}
+                    className="gap-1.5 text-xs text-rose-400 hover:text-rose-300 border-rose-500/20"
+                  >
+                    Supprimer définitivement
+                  </Button>
+                </>
+              )}
+            </div>
 
             <SheetClose asChild>
               <Button variant="primary" size="sm" className="text-xs">

@@ -32,6 +32,9 @@ export interface PLCustomerInvoice {
   public_file_url: string | null
   customer: Ref | null
   contratId?: string
+  estSupprime?: boolean
+  supprimeLe?: string | null
+  motifSuppression?: string | null
 }
 
 export interface PLCustomer {
@@ -81,7 +84,7 @@ export interface NouvelleFacture {
 
 // ---------- Ce que reçoit la page ----------
 
-export type StatutFacture = 'payee' | 'partielle' | 'a_venir' | 'en_retard' | 'brouillon'
+export type StatutFacture = 'payee' | 'partielle' | 'a_venir' | 'en_retard' | 'brouillon' | 'supprimee'
 
 export interface Kpi {
   cle: 'ca' | 'encaisse' | 'a_encaisser' | 'retard'
@@ -117,6 +120,9 @@ export interface LigneFacture {
   date: string | null
   echeance: string | null
   contratId?: string
+  estSupprime?: boolean
+  supprimeLe?: string | null
+  motifSuppression?: string | null
 }
 
 /** Un client et ce qu'il t'a rapporté : de quoi remplir sa fiche et la page Clients. */

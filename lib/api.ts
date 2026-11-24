@@ -99,7 +99,9 @@ export const api = {
     poster<ContratDV>("/api/contrats", c),
   modifierContrat: (id: string, modifs: Partial<ContratDV>) =>
     modifier<ContratDV>(`/api/contrats/${id}`, modifs),
-  supprimerContrat: (id: string) => supprimer<{ ok: true }>(`/api/contrats/${id}`),
+  supprimerContrat: (id: string, mode?: 'soft' | 'hard') =>
+    supprimer<{ ok: true; mode: string }>(`/api/contrats/${id}${mode ? `?mode=${mode}` : ''}`),
+  restaurerContrat: (id: string) => poster<{ ok: true; contrat: ContratDV }>(`/api/contrats/${id}/restaurer`, {}),
   facturerContrat: (
     id: string,
     facture: { libelle?: string; montantHT: number; tva?: CodeTva; echeanceJours?: number },
@@ -262,13 +264,17 @@ export const api = {
     poster<Entreprise>("/api/crm/entreprises", e),
   modifierEntreprise: (id: string, e: ModifEntreprise) =>
     poster<Entreprise>(`/api/crm/entreprises/${id}`, e),
-  supprimerEntreprise: (id: string) =>
-    supprimer<{ ok: true }>(`/api/crm/entreprises/${id}`),
+  supprimerEntreprise: (id: string, mode?: 'soft' | 'hard') =>
+    supprimer<{ ok: true; mode: string }>(`/api/crm/entreprises/${id}${mode ? `?mode=${mode}` : ''}`),
+  restaurerEntreprise: (id: string) => poster<{ ok: true }>(`/api/crm/entreprises/${id}/restaurer`, {}),
 
   // Factures
   creerBrouillon: (f: NouvelleFacture) => poster<{ id: number }>("/api/factures", f),
   modifierFacture: (id: number, modifs: { montantHT?: number; tva?: CodeTva; libelle?: string }) =>
     modifier<unknown>(`/api/factures/${id}`, modifs),
+  supprimerFacture: (id: number, mode?: 'soft' | 'hard') =>
+    supprimer<{ ok: true; mode: string }>(`/api/factures/${id}${mode ? `?mode=${mode}` : ''}`),
+  restaurerFacture: (id: number) => poster<{ ok: true }>(`/api/factures/${id}/restaurer`, {}),
   finaliser: (id: number) =>
     poster<{ id: number; numero: string }>(`/api/factures/${id}/finaliser`),
   envoyer: (id: number) => poster<{ ok: true }>(`/api/factures/${id}/envoyer`),
@@ -280,5 +286,15 @@ export const api = {
       `/api/factures/${id}/paiement`,
     );
     return { ...r, url: new URL(r.url, location.origin).href };
+  },
+
+  // Notifications Push PWA
+  notifications: {
+    clePublique: () => appel<{ clePublique: string }>("/api/notifications/cle-publique"),
+    souscrire: (data: { endpoint: string; keys: { p256dh: string; auth: string }; userAgent?: string }) =>
+      poster<{ id: string }>("/api/notifications/souscrire", data),
+    desinscrire: (endpoint: string) =>
+      poster<{ ok: boolean }>("/api/notifications/desinscrire", { endpoint }),
+    tester: () => poster<{ envoyes: number; echecs: number }>("/api/notifications/tester", {}),
   },
 };

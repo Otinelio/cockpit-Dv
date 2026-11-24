@@ -76,6 +76,21 @@ export class MagasinDepenses {
     return true
   }
 
+  async dissocierContrat(contratId: string): Promise<number> {
+    const list = await this.lire()
+    let modifies = 0
+    for (const d of list) {
+      if (d.contratId === contratId) {
+        d.contratId = undefined
+        modifies++
+      }
+    }
+    if (modifies > 0) {
+      await this.sauvegarder(list)
+    }
+    return modifies
+  }
+
   async modifier(id: string, modifs: Partial<Omit<DepenseDV, 'id' | 'creeeLe'>>): Promise<DepenseDV | null> {
     const list = await this.lire()
     const idx = list.findIndex((d) => d.id === id)

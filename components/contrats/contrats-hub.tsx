@@ -17,6 +17,7 @@ import NouveauContratDialog from "@/components/contrats/nouveau-contrat-dialog";
 import ContratDetailSheet from "@/components/contrats/contrat-detail-sheet";
 import { useCockpit } from "@/stores/cockpit-store";
 import { euros } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { ContratDV, StatutContratDV } from "@/server/dv-types";
 import {
   Building2,
@@ -37,6 +38,7 @@ const ONGLETS = [
   { value: "en_attente", label: "En attente" },
   { value: "brouillon", label: "Brouillons" },
   { value: "termine", label: "Terminés" },
+  { value: "supprime", label: "Corbeille" },
 ];
 
 function statutBadge(s: StatutContratDV) {
@@ -49,6 +51,8 @@ function statutBadge(s: StatutContratDV) {
       return <Tag tone="purple" size="sm">Terminé</Tag>;
     case "resilie":
       return <Tag tone="red" size="sm">Résilié</Tag>;
+    case "supprime":
+      return <Tag tone="red" size="sm">Supprimé</Tag>;
     default:
       return <Tag tone="neutral" size="sm">Brouillon</Tag>;
   }
@@ -81,7 +85,11 @@ export default function ContratsHub() {
   // Filtrage
   const contratsFiltres = useMemo(() => {
     return contrats
-      .filter((c) => (filtreStatut === "tous" ? true : c.statut === filtreStatut))
+      .filter((c) => {
+        if (filtreStatut === "supprime") return c.estSupprime || c.statut === "supprime";
+        if (filtreStatut === "tous") return !c.estSupprime && c.statut !== "supprime";
+        return c.statut === filtreStatut && !c.estSupprime;
+      })
       .filter((c) => {
         if (!recherche.trim()) return true;
         const q = recherche.toLowerCase();
@@ -94,9 +102,13 @@ export default function ContratsHub() {
   }, [contrats, filtreStatut, recherche]);
 
   // Métriques globales
-  const volumeTotalFCFA = contrats.reduce((acc, c) => acc + (c.montantFCFA || 0), 0);
-  const contratsActifs = contrats.filter((c) => c.statut === "actif").length;
-  const totalFacturesLiees = (tableau?.factures ?? []).filter((f) => Boolean(f.contratId));
+  const volumeTotalFCFA = contrats
+    .filter((c) => !c.estSupprime && c.statut !== "supprime")
+    .reduce((acc, c) => acc + (c.montantFCFA || 0), 0);
+  const contratsActifs = contrats.filter((c) => !c.estSupprime && c.statut === "actif").length;
+  const totalFacturesLiees = (tableau?.factures ?? []).filter(
+    (f) => Boolean(f.contratId) && !f.estSupprime && f.statut !== "supprimee",
+  );
   const montantFactureCumule = totalFacturesLiees.reduce((acc, f) => acc + f.montant, 0);
 
   return (
@@ -262,11 +274,16 @@ export default function ContratsHub() {
                     );
                     const montantFacture = facturesDuContrat.reduce((acc, f) => acc + f.montant, 0);
 
+                    const estSupprime = Boolean(c.estSupprime || c.statut === "supprime");
+
                     return (
                       <TableRow
                         key={c.id}
                         onClick={() => setContratSelectionne(c)}
-                        className="cursor-pointer hover:bg-secondary/40 transition-colors group"
+                        className={cn(
+                          "cursor-pointer hover:bg-secondary/40 transition-colors group",
+                          estSupprime && "opacity-60 line-through bg-red-950/10 hover:bg-red-950/20",
+                        )}
                       >
                         {/* Contrat & Client */}
                         <TableCell className="py-3.5">

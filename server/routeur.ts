@@ -18,6 +18,7 @@ import { magasinTaches } from './dv-taches'
 import { magasinDepenses } from './dv-depenses'
 import { magasinSaas } from './dv-saas'
 import { magasinContrats } from './dv-contrats'
+import { servicePush } from './dv-push'
 import { hubService } from './hub-service'
 import type { ActiviteDV, ContratDV, DepenseDV, JalonFacturationDV, ModeFacturationContrat, SaasDV, TacheDV } from './dv-types'
 import type { CategorieCoffre, IdentiteEntreprise, ReunionDV, VisionStrategique } from './hub-types'
@@ -746,6 +747,13 @@ async function router(req: Request): Promise<Response> {
       })
 
       e.cache = null
+      await servicePush
+        .envoyer({
+          titre: '✍️ Contrat signé par le client !',
+          corps: `${b.nomSignataire.trim()} vient de signer le contrat "${contrat.titre}" (${contrat.nomEntreprise})`,
+          url: '/contrats',
+        })
+        .catch(() => {})
       return json(200, { ok: true, contrat: c })
     }
   }
@@ -765,10 +773,66 @@ async function router(req: Request): Promise<Response> {
       return json(200, c)
     }
     if (methode === 'DELETE') {
-      const ok = await magasinContrats.supprimer(id)
-      if (!ok) throw new ErreurHttp(404, 'Contrat introuvable')
-      return json(200, { ok: true })
+      const mode = url.searchParams.get('mode') === 'hard' ? 'hard' : 'soft'
+      if (mode === 'hard') {
+        let facturesSupprimees = 0
+        if (local) {
+          facturesSupprimees = await local.supprimerParContrat(id)
+        }
+        const tachesSupprimees = await magasinTaches.supprimerParContrat(id)
+        await magasinDepenses.dissocierContrat(id)
+        const ok = await magasinContrats.supprimer(id)
+        if (!ok) throw new ErreurHttp(404, 'Contrat introuvable')
+        e.cache = null
+        await magasinActivite.enregistrer({
+          auteur,
+          type: 'contrat',
+          titre: `Contrat supprimé définitivement`,
+          details: `${facturesSupprimees} facture(s) et ${tachesSupprimees} tâche(s) purgées`,
+          cibleId: id,
+        })
+        return json(200, { ok: true, mode: 'hard', facturesSupprimees, tachesSupprimees })
+      } else {
+        // Soft delete : mise à la corbeille
+        let facturesInvalidees = 0
+        if (local) {
+          facturesInvalidees = await local.marquerSupprimeesParContrat(id, 'Contrat parent supprimé')
+        }
+        const tachesInvalidees = await magasinTaches.marquerSupprimeesParContrat(id)
+        const c = await magasinContrats.marquerSupprime(id)
+        if (!c) throw new ErreurHttp(404, 'Contrat introuvable')
+        e.cache = null
+        await magasinActivite.enregistrer({
+          auteur,
+          type: 'contrat',
+          titre: `Contrat mis à la corbeille`,
+          details: `${facturesInvalidees} facture(s) invalidée(s) et décomptée(s) du CA`,
+          cibleId: id,
+        })
+        return json(200, { ok: true, mode: 'soft', facturesInvalidees, tachesInvalidees })
+      }
     }
+  }
+
+  const routeContratRestaurer = chemin.match(/^\/api\/contrats\/([a-z0-9-]+)\/restaurer$/)
+  if (routeContratRestaurer && methode === 'POST') {
+    const id = routeContratRestaurer[1]
+    const c = await magasinContrats.restaurer(id)
+    if (!c) throw new ErreurHttp(404, 'Contrat introuvable')
+    let facturesRestaurees = 0
+    if (local) {
+      facturesRestaurees = await local.restaurerParContrat(id)
+    }
+    const tachesRestaurees = await magasinTaches.restaurerParContrat(id)
+    e.cache = null
+    await magasinActivite.enregistrer({
+      auteur,
+      type: 'contrat',
+      titre: `Contrat restauré : ${c.titre}`,
+      details: `${facturesRestaurees} facture(s) réactivée(s) et réintégrée(s) au CA`,
+      cibleId: id,
+    })
+    return json(200, { ok: true, contrat: c, facturesRestaurees, tachesRestaurees })
   }
 
   // === DIGITALVISION HUB (ESPACE ENTREPRISE) ===
@@ -1010,15 +1074,90 @@ async function router(req: Request): Promise<Response> {
   }
   if (methode === 'DELETE' && fiche) {
     const id = fiche[1]
-    const ok = await crm.supprimer(id)
+    const carnet = await crm.idsLocaux()
+    const ent = carnet.entreprises.find((x) => x.id === id)
+    if (!ent) throw new ErreurHttp(404, 'Entreprise introuvable')
+    const mode = url.searchParams.get('mode') === 'hard' ? 'hard' : 'soft'
+
+    if (mode === 'hard') {
+      const contratsSupprimes = await magasinContrats.supprimerParEntreprise(ent.id, ent.nom)
+      let facturesSupprimees = 0
+      if (local) {
+        for (const c of contratsSupprimes) {
+          facturesSupprimees += await local.supprimerParContrat(c.id)
+          await magasinTaches.supprimerParContrat(c.id)
+          await magasinDepenses.dissocierContrat(c.id)
+        }
+        if (ent.pennylaneId !== null) {
+          facturesSupprimees += await local.supprimerParClient(ent.pennylaneId)
+        }
+      }
+      const tachesSupprimees = await magasinTaches.supprimerParEntreprise(ent.id, ent.nom)
+      const ok = await crm.supprimer(id)
+      if (!ok) throw new ErreurHttp(404, 'Entreprise introuvable')
+      e.cache = null
+      await magasinActivite.enregistrer({
+        auteur,
+        type: 'client',
+        titre: `Entreprise supprimée définitivement : ${ent.nom}`,
+        details: `${contratsSupprimes.length} contrat(s) et ${facturesSupprimees} facture(s) purgés`,
+        cibleId: id,
+      })
+      return json(200, { ok: true, mode: 'hard', contratsSupprimes: contratsSupprimes.length, facturesSupprimees, tachesSupprimees })
+    } else {
+      // Soft delete
+      const contratsModifs = await magasinContrats.marquerSupprimesParEntreprise(ent.id, ent.nom)
+      let facturesInvalidees = 0
+      if (local) {
+        for (const c of contratsModifs) {
+          facturesInvalidees += await local.marquerSupprimeesParContrat(c.id, `Entreprise parente (${ent.nom}) supprimée`)
+        }
+        if (ent.pennylaneId !== null) {
+          facturesInvalidees += await local.marquerSupprimeesParClient(ent.pennylaneId, `Entreprise parente (${ent.nom}) supprimée`)
+        }
+      }
+      const tachesInvalidees = await magasinTaches.marquerSupprimeesParEntreprise(ent.id, ent.nom)
+      const ok = await crm.marquerSupprime(id)
+      if (!ok) throw new ErreurHttp(404, 'Entreprise introuvable')
+      e.cache = null
+      await magasinActivite.enregistrer({
+        auteur,
+        type: 'client',
+        titre: `Entreprise mise à la corbeille : ${ent.nom}`,
+        details: `${contratsModifs.length} contrat(s) et ${facturesInvalidees} facture(s) invalidés`,
+        cibleId: id,
+      })
+      return json(200, { ok: true, mode: 'soft', contratsModifs: contratsModifs.length, facturesInvalidees, tachesInvalidees })
+    }
+  }
+
+  const ficheRestaurer = chemin.match(/^\/api\/crm\/entreprises\/([a-z0-9-]+)\/restaurer$/)
+  if (methode === 'POST' && ficheRestaurer) {
+    const id = ficheRestaurer[1]
+    const carnet = await crm.idsLocaux()
+    const ent = carnet.entreprises.find((x) => x.id === id)
+    if (!ent) throw new ErreurHttp(404, 'Entreprise introuvable')
+    const ok = await crm.restaurer(id)
     if (!ok) throw new ErreurHttp(404, 'Entreprise introuvable')
+    const contratsRestaurees = await magasinContrats.restaurerParEntreprise(ent.id, ent.nom)
+    let facturesRestaurees = 0
+    if (local) {
+      for (const c of contratsRestaurees) {
+        facturesRestaurees += await local.restaurerParContrat(c.id)
+      }
+      if (ent.pennylaneId !== null) {
+        facturesRestaurees += await local.restaurerParClient(ent.pennylaneId)
+      }
+    }
+    await magasinTaches.restaurerParEntreprise(ent.id, ent.nom)
+    e.cache = null
     await magasinActivite.enregistrer({
       auteur,
       type: 'client',
-      titre: `Entreprise supprimée du CRM`,
+      titre: `Entreprise restaurée : ${ent.nom}`,
       cibleId: id,
     })
-    return json(200, { ok: true })
+    return json(200, { ok: true, contratsRestaurees: contratsRestaurees.length, facturesRestaurees })
   }
 
   // === FACTURES ===
@@ -1051,6 +1190,91 @@ async function router(req: Request): Promise<Response> {
       cibleId: id,
     })
     return json(200, f)
+  }
+  if (routeModifFacture && methode === 'DELETE') {
+    const id = Number(routeModifFacture[1])
+    if (!local) throw new ErreurHttp(400, 'Suppression de facture supportée en mode local')
+    const mode = url.searchParams.get('mode') === 'hard' ? 'hard' : 'soft'
+
+    if (mode === 'hard') {
+      const ok = await local.supprimer(id)
+      if (!ok) throw new ErreurHttp(404, 'Facture introuvable')
+      e.cache = null
+
+      // Détacher d'éventuels jalons de contrat
+      const tousContrats = await magasinContrats.lister()
+      for (const c of tousContrats) {
+        if (c.jalonsFacturation) {
+          let change = false
+          for (const j of c.jalonsFacturation) {
+            if (j.factureId === id) {
+              j.statut = 'pret'
+              j.factureId = undefined
+              change = true
+            }
+          }
+          if (change) {
+            await magasinContrats.modifier(c.id, { jalonsFacturation: c.jalonsFacturation })
+          }
+        }
+      }
+
+      await magasinActivite.enregistrer({
+        auteur,
+        type: 'facture',
+        titre: `Facture #${id} supprimée définitivement`,
+        cibleId: id,
+      })
+      return json(200, { ok: true, mode: 'hard' })
+    } else {
+      // Soft delete
+      const ok = await local.marquerSupprimee(id, 'Facture mise à la corbeille')
+      if (!ok) throw new ErreurHttp(404, 'Facture introuvable')
+      e.cache = null
+
+      // Détacher jalon si nécessaire
+      const tousContrats = await magasinContrats.lister()
+      for (const c of tousContrats) {
+        if (c.jalonsFacturation) {
+          let change = false
+          for (const j of c.jalonsFacturation) {
+            if (j.factureId === id) {
+              j.statut = 'pret'
+              j.factureId = undefined
+              change = true
+            }
+          }
+          if (change) {
+            await magasinContrats.modifier(c.id, { jalonsFacturation: c.jalonsFacturation })
+          }
+        }
+      }
+
+      await magasinActivite.enregistrer({
+        auteur,
+        type: 'facture',
+        titre: `Facture #${id} mise à la corbeille (exclue du CA)`,
+        cibleId: id,
+      })
+      return json(200, { ok: true, mode: 'soft' })
+    }
+  }
+
+  const routeRestaurerFacture = chemin.match(/^\/api\/factures\/(\d+)\/restaurer$/)
+  if (routeRestaurerFacture && methode === 'POST') {
+    const id = Number(routeRestaurerFacture[1])
+    if (!local) throw new ErreurHttp(400, 'Restauration de facture supportée en mode local')
+    const ok = await local.restaurer(id)
+    if (!ok) throw new ErreurHttp(404, 'Facture introuvable')
+    e.cache = null
+    await magasinActivite.enregistrer({
+      auteur,
+      type: 'facture',
+      titre: `Facture #${id} restaurée`,
+      details: 'La facture a été réactivée et réintégrée au CA',
+      cibleId: id,
+    })
+    return json(200, { ok: true })
   }
 
   const action = chemin.match(/^\/api\/factures\/(\d+)\/(finaliser|envoyer|pdf|paiement|payer)$/)
@@ -1085,6 +1309,13 @@ async function router(req: Request): Promise<Response> {
         details: 'Facture encaissée',
         cibleId: id,
       })
+      await servicePush
+        .envoyer({
+          titre: '💰 Paiement reçu !',
+          corps: `Paiement enregistré pour la facture #${id}`,
+          url: '/factures',
+        })
+        .catch(() => {})
       return json(200, { ok: true })
     }
     if (methode === 'GET' && action[2] === 'pdf' && local) {
@@ -1107,6 +1338,46 @@ async function router(req: Request): Promise<Response> {
       if (!lien) throw new ErreurHttp(404, "Pas de lien de paiement pour un brouillon : finalise d'abord la facture")
       return json(200, { url: lien, simule: source.mode === 'demo' })
     }
+  }
+
+  // === NOTIFICATIONS PUSH PWA ===
+  if (methode === 'GET' && chemin === '/api/notifications/cle-publique') {
+    const clePublique = await servicePush.obtenirClePublique()
+    return json(200, { clePublique })
+  }
+
+  if (methode === 'POST' && chemin === '/api/notifications/souscrire') {
+    const b = (await lireJson(req)) as {
+      endpoint: string
+      keys: { p256dh: string; auth: string }
+      userAgent?: string
+    }
+    if (!b.endpoint || !b.keys?.p256dh || !b.keys?.auth) {
+      throw new ErreurHttp(400, 'Souscription Web Push invalide')
+    }
+    const sub = await servicePush.souscrire({
+      endpoint: b.endpoint,
+      keys: b.keys,
+      auteur,
+      userAgent: b.userAgent,
+    })
+    return json(201, sub)
+  }
+
+  if (methode === 'POST' && chemin === '/api/notifications/desinscrire') {
+    const b = (await lireJson(req)) as { endpoint: string }
+    if (!b.endpoint) throw new ErreurHttp(400, 'Endpoint requis')
+    const ok = await servicePush.desinscrire(b.endpoint)
+    return json(200, { ok })
+  }
+
+  if (methode === 'POST' && chemin === '/api/notifications/tester') {
+    const res = await servicePush.envoyer({
+      titre: '🚀 Cockpit DigitalVision',
+      corps: `Notification de test réussie pour ${auteur} ! Vos alertes push PWA sont actives.`,
+      url: '/',
+    })
+    return json(200, res)
   }
 
   if (source.mode === 'demo' && methode === 'POST' && chemin === '/api/demo/reinitialiser') {

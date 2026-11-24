@@ -23,6 +23,9 @@ interface FactureLocale {
   echeance: string | null
   payeeLe: string | null
   contratId?: string
+  estSupprime?: boolean
+  supprimeLe?: string | null
+  motifSuppression?: string | null
 }
 
 interface Fichier {
@@ -34,6 +37,15 @@ export type SourceLocale = Source & {
   pdf(id: number): Promise<{ octets: Uint8Array; nom: string }>
   marquerPayee(id: number): Promise<void>
   modifier(id: number, modifs: { montantHT?: number; tva?: CodeTva; libelle?: string }): Promise<PLCustomerInvoice>
+  marquerSupprimee(id: number, motif?: string): Promise<boolean>
+  restaurer(id: number): Promise<boolean>
+  supprimer(id: number): Promise<boolean>
+  marquerSupprimeesParContrat(contratId: string, motif?: string): Promise<number>
+  restaurerParContrat(contratId: string): Promise<number>
+  marquerSupprimeesParClient(clientId: number, motif?: string): Promise<number>
+  restaurerParClient(clientId: number): Promise<number>
+  supprimerParContrat(contratId: string): Promise<number>
+  supprimerParClient(clientId: number): Promise<number>
 }
 
 const TAUX: Partial<Record<CodeTva, number>> = { TG_180: TVA_TAUX, exempt: 0 }
@@ -53,22 +65,33 @@ const ttcDe = (f: FactureLocale) => Math.round(f.montantHT * (1 + f.tauxTva))
 function versPL(f: FactureLocale): PLCustomerInvoice {
   const ttc = ttcDe(f)
   const brouillon = !f.numero
-  const statut = f.payeeLe ? 'paid' : brouillon ? 'draft' : (f.echeance ?? '') < aujourdhui() ? 'late' : 'upcoming'
+  const statut = f.estSupprime
+    ? 'cancelled'
+    : f.payeeLe
+      ? 'paid'
+      : brouillon
+        ? 'draft'
+        : (f.echeance ?? '') < aujourdhui()
+          ? 'late'
+          : 'upcoming'
   return {
     id: f.id,
     label: f.libelle,
     invoice_number: f.numero,
-    amount: String(ttc),
-    currency_amount_before_tax: String(f.montantHT),
+    amount: f.estSupprime ? '0' : String(ttc),
+    currency_amount_before_tax: f.estSupprime ? '0' : String(f.montantHT),
     date: f.date,
     deadline: f.echeance,
-    paid: !!f.payeeLe,
+    paid: !f.estSupprime && !!f.payeeLe,
     status: statut,
     draft: brouillon,
-    remaining_amount_with_tax: f.payeeLe ? '0' : String(ttc),
-    public_file_url: brouillon ? null : `/api/factures/${f.id}/pdf`,
+    remaining_amount_with_tax: f.estSupprime || f.payeeLe ? '0' : String(ttc),
+    public_file_url: brouillon || f.estSupprime ? null : `/api/factures/${f.id}/pdf`,
     customer: { id: f.clientId, url: '' },
     contratId: f.contratId,
+    estSupprime: f.estSupprime,
+    supprimeLe: f.supprimeLe,
+    motifSuppression: f.motifSuppression,
   }
 }
 
@@ -116,7 +139,7 @@ export function sourceLocale(crm: MagasinCrm): SourceLocale {
     /** Les entrées d'argent : une facture marquée « payée » devient un encaissement à la date où tu l'as marquée. */
     async encaissements(depuis: string): Promise<PLTransaction[]> {
       return (await lire()).factures
-        .filter((f) => f.payeeLe && f.payeeLe >= depuis)
+        .filter((f) => f.payeeLe && !f.estSupprime && f.payeeLe >= depuis)
         .map((f) => ({ id: f.id, date: f.payeeLe!, amount: String(ttcDe(f)), customer: { id: f.clientId, url: '' } }))
     },
 
@@ -209,6 +232,115 @@ export function sourceLocale(crm: MagasinCrm): SourceLocale {
       }
       await ecrire(f)
       return versPL(facture)
+    },
+
+    async marquerSupprimee(id: number, motif?: string): Promise<boolean> {
+      const f = await lire()
+      const facture = f.factures.find((x) => x.id === id)
+      if (!facture) return false
+      facture.estSupprime = true
+      facture.supprimeLe = aujourdhui()
+      facture.motifSuppression = motif ?? 'Supprimée par l’utilisateur'
+      await ecrire(f)
+      return true
+    },
+
+    async restaurer(id: number): Promise<boolean> {
+      const f = await lire()
+      const facture = f.factures.find((x) => x.id === id)
+      if (!facture) return false
+      facture.estSupprime = false
+      facture.supprimeLe = null
+      facture.motifSuppression = null
+      await ecrire(f)
+      return true
+    },
+
+    async marquerSupprimeesParContrat(contratId: string, motif?: string): Promise<number> {
+      const f = await lire()
+      let count = 0
+      for (const fac of f.factures) {
+        if (fac.contratId === contratId && !fac.estSupprime) {
+          fac.estSupprime = true
+          fac.supprimeLe = aujourdhui()
+          fac.motifSuppression = motif ?? 'Contrat parent supprimé'
+          count++
+        }
+      }
+      if (count > 0) await ecrire(f)
+      return count
+    },
+
+    async restaurerParContrat(contratId: string): Promise<number> {
+      const f = await lire()
+      let count = 0
+      for (const fac of f.factures) {
+        if (fac.contratId === contratId && fac.estSupprime) {
+          fac.estSupprime = false
+          fac.supprimeLe = null
+          fac.motifSuppression = null
+          count++
+        }
+      }
+      if (count > 0) await ecrire(f)
+      return count
+    },
+
+    async marquerSupprimeesParClient(clientId: number, motif?: string): Promise<number> {
+      const f = await lire()
+      let count = 0
+      for (const fac of f.factures) {
+        if (fac.clientId === clientId && !fac.estSupprime) {
+          fac.estSupprime = true
+          fac.supprimeLe = aujourdhui()
+          fac.motifSuppression = motif ?? 'Client parent supprimé'
+          count++
+        }
+      }
+      if (count > 0) await ecrire(f)
+      return count
+    },
+
+    async restaurerParClient(clientId: number): Promise<number> {
+      const f = await lire()
+      let count = 0
+      for (const fac of f.factures) {
+        if (fac.clientId === clientId && fac.estSupprime) {
+          fac.estSupprime = false
+          fac.supprimeLe = null
+          fac.motifSuppression = null
+          count++
+        }
+      }
+      if (count > 0) await ecrire(f)
+      return count
+    },
+
+    async supprimer(id: number): Promise<boolean> {
+      const f = await lire()
+      const longAvant = f.factures.length
+      f.factures = f.factures.filter((x) => x.id !== id)
+      if (f.factures.length === longAvant) return false
+      await ecrire(f)
+      return true
+    },
+
+    async supprimerParContrat(contratId: string): Promise<number> {
+      const f = await lire()
+      const avant = f.factures.length
+      f.factures = f.factures.filter((x) => x.contratId !== contratId)
+      const supprimees = avant - f.factures.length
+      if (supprimees > 0) await ecrire(f)
+      return supprimees
+    },
+
+    async supprimerParClient(clientId: number): Promise<number> {
+      const f = await lire()
+      const avant = f.factures.length
+      f.factures = f.factures.filter((x) => x.clientId !== clientId)
+      const supprimees = avant - f.factures.length
+      if (supprimees > 0) await ecrire(f)
+      return supprimees
     },
 
     async pdf(id: number) {

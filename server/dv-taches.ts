@@ -104,12 +104,113 @@ export class MagasinTaches {
     return list[idx]
   }
 
+  async marquerSupprimeesParContrat(contratId: string): Promise<number> {
+    const list = await this.lire()
+    let modifies = 0
+    for (const t of list) {
+      if (t.contratId === contratId && t.statut !== 'supprimee') {
+        t.statut = 'supprimee'
+        t.estSupprime = true
+        t.supprimeLe = new Date().toISOString()
+        modifies++
+      }
+    }
+    if (modifies > 0) {
+      await this.sauvegarder(list)
+    }
+    return modifies
+  }
+
+  async restaurerParContrat(contratId: string): Promise<number> {
+    const list = await this.lire()
+    let modifies = 0
+    for (const t of list) {
+      if (t.contratId === contratId && t.statut === 'supprimee') {
+        t.statut = t.termineeLe ? 'terminee' : 'a_faire'
+        t.estSupprime = false
+        t.supprimeLe = undefined
+        modifies++
+      }
+    }
+    if (modifies > 0) {
+      await this.sauvegarder(list)
+    }
+    return modifies
+  }
+
+  async marquerSupprimeesParEntreprise(entrepriseId: string, nomEntreprise?: string): Promise<number> {
+    const list = await this.lire()
+    const nomLower = nomEntreprise?.trim().toLowerCase()
+    let modifies = 0
+    for (const t of list) {
+      const matchId = t.entrepriseId === entrepriseId
+      const matchNom = !!(nomLower && t.nomEntreprise && t.nomEntreprise.trim().toLowerCase() === nomLower)
+      if ((matchId || matchNom) && t.statut !== 'supprimee') {
+        t.statut = 'supprimee'
+        t.estSupprime = true
+        t.supprimeLe = new Date().toISOString()
+        modifies++
+      }
+    }
+    if (modifies > 0) {
+      await this.sauvegarder(list)
+    }
+    return modifies
+  }
+
+  async restaurerParEntreprise(entrepriseId: string, nomEntreprise?: string): Promise<number> {
+    const list = await this.lire()
+    const nomLower = nomEntreprise?.trim().toLowerCase()
+    let modifies = 0
+    for (const t of list) {
+      const matchId = t.entrepriseId === entrepriseId
+      const matchNom = !!(nomLower && t.nomEntreprise && t.nomEntreprise.trim().toLowerCase() === nomLower)
+      if ((matchId || matchNom) && t.statut === 'supprimee') {
+        t.statut = t.termineeLe ? 'terminee' : 'a_faire'
+        t.estSupprime = false
+        t.supprimeLe = undefined
+        modifies++
+      }
+    }
+    if (modifies > 0) {
+      await this.sauvegarder(list)
+    }
+    return modifies
+  }
+
   async supprimer(id: string): Promise<boolean> {
     const list = await this.lire()
     const filtre = list.filter((t) => t.id !== id)
     if (filtre.length === list.length) return false
     await this.sauvegarder(filtre)
     return true
+  }
+
+  async supprimerParContrat(contratId: string): Promise<number> {
+    const list = await this.lire()
+    const avant = list.length
+    const filtre = list.filter((t) => t.contratId !== contratId)
+    const supprimees = avant - filtre.length
+    if (supprimees > 0) {
+      await this.sauvegarder(filtre)
+    }
+    return supprimees
+  }
+
+  async supprimerParEntreprise(entrepriseId: string, nomEntreprise?: string): Promise<number> {
+    const list = await this.lire()
+    const avant = list.length
+    const nomLower = nomEntreprise?.trim().toLowerCase()
+    const filtre = list.filter(
+      (t) =>
+        t.entrepriseId !== entrepriseId &&
+        (!nomLower || !t.nomEntreprise || t.nomEntreprise.trim().toLowerCase() !== nomLower),
+    )
+    const supprimees = avant - filtre.length
+    if (supprimees > 0) {
+      await this.sauvegarder(filtre)
+    }
+    return supprimees
   }
 }
 
